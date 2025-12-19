@@ -72,8 +72,8 @@ def login(user_creds: UserLogin):
         return {"message": "Login successful", "user": user}
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
-@app.get("/")
-def read_root():
+@app.get("/api/health")
+def health_check():
     return {"status": "active", "service": "UPI Payment Backend (Supabase)"}
 
 @app.get("/transactions")
