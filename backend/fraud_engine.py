@@ -5,9 +5,12 @@ import random
 from datetime import datetime
 from database import get_user_stats, get_last_transaction
 
-# Load Model
+import os
+# Load Model using absolute path
 try:
-    model = joblib.load("model.pkl")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(current_dir, "model.pkl")
+    model = joblib.load(model_path)
     print("Pretrained Fraud Detection Model Loaded Successfully.")
 except Exception as e:
     print(f"Error loading model: {e}")
