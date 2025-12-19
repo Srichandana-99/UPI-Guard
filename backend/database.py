@@ -17,9 +17,14 @@ smtp_email: str = os.environ.get("SMTP_EMAIL")
 smtp_password: str = os.environ.get("SMTP_PASSWORD")
 
 if not url or not key:
-    raise ValueError("Supabase URL and Key must be set in .env file")
-
-supabase: Client = create_client(url, key)
+    print("⚠️ Supabase URL and Key NOT found in environment. Database operations will fail.")
+    supabase = None
+else:
+    try:
+        supabase: Client = create_client(url, key)
+    except Exception as e:
+         print(f"❌ Error connecting to Supabase: {e}")
+         supabase = None
 # --- User Management ---
 
 def validate_password(password):
