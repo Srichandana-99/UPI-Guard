@@ -1,5 +1,5 @@
 import joblib
-import pandas as pd
+import joblib
 import numpy as np
 import random
 from datetime import datetime
@@ -57,8 +57,9 @@ def get_real_features(amount: float, upi_id: str, latitude: float = 0.0, longitu
         'TransactionID', 'DeviceID', 'Weekday', 'Latitude', 'Hour'
     ]
     
-    df = pd.DataFrame([features], columns=columns)
-    return df
+    # Create a 2D array (1 sample, n features)
+    data = [features[col] for col in columns]
+    return np.array([data])
 
 def check_fraud(amount: float, upi_id: str, context: dict = None) -> tuple[bool, int, str | None]:
     """
@@ -97,8 +98,12 @@ def check_fraud(amount: float, upi_id: str, context: dict = None) -> tuple[bool,
         if is_fraud:
             reason = "ML Model Detected Suspicious Pattern (Based on History)"
         
+        
         # [Production Hybrid Rule 1: High Value Anomaly]
-        if not is_fraud and input_data['UnusualAmount'].values[0] == 1 and amount > 5000:
+        # input_data is now a numpy array, access via index or recreate mapping if needed. 
+        # 'UnusualAmount' is 6th feature (index 5)
+        unusual_amount_val = input_data[0][5]
+        if not is_fraud and unusual_amount_val == 1 and amount > 5000:
              # Stricter rule: > 5000 and unusual
             is_fraud = True
             risk_score = max(risk_score, 85)
