@@ -1,0 +1,5 @@
+{
+  "appId": "com.detection.upi",
+  "appName": "UPI Fraud Detection",
+  "webDir": "dist"
+}
