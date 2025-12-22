@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">UPI Fraud Detection</string>
-    <string name="title_activity_main">UPI Fraud Detection</string>
-    <string name="package_name">com.detection.upi</string>
-    <string name="custom_url_scheme">com.detection.upi</string>
-</resources>

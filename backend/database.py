@@ -75,83 +75,118 @@ def send_otp_email(to_email, otp):
         return False
 
 def create_user(name, email, password):
-    """Create a new user with default balance and OTP."""
+    """
+    Create a new user using Supabase Auth and sync to public.users table.
+    """
     try:
-        # 1. Validate Password
+        # 1. Validate Password (keep local validation or let Supabase handle it)
         is_valid, msg = validate_password(password)
         if not is_valid:
-            print(f"Password validation failed: {msg}")
-            # Raise exception or return special error structure? 
-            # Ideally return tuple/dict. Existing behaves as Bool.
-            # Let's workaround to keep True/False signature or change it?
-            # Changing signature requires main.py update. 
-            # I'll update main.py to handle exceptions or dict return.
-            raise ValueError(msg)
+             raise ValueError(msg)
 
-        # Check if user exists
-        existing = supabase.table('users').select("*").eq('email', email).execute()
-        if existing.data:
-            return False
-
-        # Generate OTP
-        otp = str(random.randint(100000, 999999))
-        
-        # Send Email
-        send_otp_email(email, otp)
-
-        # Create user
-        payload = {
-            "name": name,
+        # 2. Sign up with Supabase Auth
+        # This sends the email automatically based on Supabase project settings.
+        auth_response = supabase.auth.sign_up({
             "email": email,
-            "password": password, 
-            "balance": 10000.0, 
-            "is_verified": False,
-            "verification_code": otp,
-            "created_at": datetime.now().isoformat()
-        }
-        supabase.table('users').insert(payload).execute()
-        return True
-    except ValueError as ve:
-        # Re-raise for main.py to catch
-        raise ve
-    except Exception as e:
-        print(f"Error creating user: {e}")
+            "password": password,
+            "options": {
+                "data": { "name": name }
+            }
+        })
+        
+        user = auth_response.user
+        if not user:
+             # Check if session exists (auto-confirm case)
+             if auth_response.session:
+                 user = auth_response.session.user
+             else:
+                 # Raise error if no user returned (e.g. rate limit, existing user handled by exception?)
+                 # If user exists, Supabase might return an obfuscated Identity or raise error depending on config.
+                 # Usually checks existing user earlier or raises error.
+                 pass
+
+        if not user and not auth_response.session:
+             # This sometimes happens if email confirmation is required and rate limits hit, 
+             # OR if identity actually exists.
+             # But usually sign_up returns a User object even if unconfirmed.
+             # If user already registered, Supabase mimics success for security unless disabled.
+             # We can check public.users to be sure.
+             existing = supabase.table('users').select("id").eq('email', email).execute()
+             if existing.data:
+                 return False # User exists
+             
+        if user:
+            payload = {
+                "id": user.id, # Link to Auth ID
+                "name": name,
+                "email": email,
+                "password": "MANAGED_BY_SUPABASE_AUTH", 
+                "balance": 10000.0, 
+                "is_verified": False, 
+                "created_at": datetime.now().isoformat()
+            }
+            # Insert, ignoring conflict if trigger already handled it
+            supabase.table('users').upsert(payload).execute()
+            return True
         return False
 
-def verify_email_otp(email, code):
-    """Verify the OTP code."""
-    try:
-        response = supabase.table('users').select("verification_code, id").eq('email', email).execute()
-        if not response.data:
-            return False, "User not found"
-        
-        user = response.data[0]
-        if user['verification_code'] == code:
-            # Mark as verified
-            supabase.table('users').update({"is_verified": True, "verification_code": None}).eq('id', user['id']).execute()
-            return True, "Verified successfully"
-        else:
-            return False, "Invalid code"
     except Exception as e:
-        print(f"Error verifying OTP: {e}")
-        return False, "Verification error"
+        print(f"Error creating user: {e}")
+        # Detect specifics if possible
+        if "User already registered" in str(e):
+             return False
+        raise e
 
 def verify_user(email, password):
-    """Verify user credentials and return user details."""
+    """Verify user credentials via Supabase Auth login."""
     try:
-        response = supabase.table('users').select("*").eq('email', email).eq('password', password).execute()
-        if response.data:
-            user = response.data[0]
-            # Check verification status
-            if not user.get('is_verified', True): # Default to True if column missing (fallback) or False if strictly needed
-                # Ideally we enforce False, but for migration safety if column null...
-                # Let's enforce it if the value is explicitly False
-                if user.get('is_verified') is False:
-                    return {"error": "Email not verified", "code": "NOT_VERIFIED"}
-            return user
+        res = supabase.auth.sign_in_with_password({
+            "email": email,
+            "password": password
+        })
+        
+        if res.user:
+            # Sync verification status: logic
+            # If Supabase Auth says confirmed (res.user.confirmed_at is set), 
+            # ensure public.users.is_verified is True.
+            
+            # Note: supabase-py User object properties might vary by version. 
+            # inspecting the response is safest, but typically `email_confirmed_at` or `confirmed_at`
+            is_confirmed_by_auth = False
+            if hasattr(res.user, 'confirmed_at') and res.user.confirmed_at:
+                 is_confirmed_by_auth = True
+            elif hasattr(res.user, 'email_confirmed_at') and res.user.email_confirmed_at:
+                 is_confirmed_by_auth = True
+                 
+            if is_confirmed_by_auth:
+                 supabase.table('users').update({"is_verified": True}).eq('id', res.user.id).execute()
+
+            # Fetch app-specific data from public.users
+            response = supabase.table('users').select("*").eq('id', res.user.id).execute()
+            if response.data:
+                public_user = response.data[0]
+                
+                # Double check: if auth confirmed, force verified in return obj even if DB write lagged
+                if is_confirmed_by_auth:
+                    public_user['is_verified'] = True
+                    
+                return public_user
+            
+            # Fallback if public record missing
+            return {
+                "id": res.user.id,
+                "email": res.user.email,
+                "name": res.user.user_metadata.get('name', 'User'),
+                "balance": 0.0,
+                "is_verified": is_confirmed_by_auth
+            }
         return None
     except Exception as e:
         print(f"Error verifying user: {e}")
+        if "Invalid login credentials" in str(e):
+             return None
+        if "Email not confirmed" in str(e):
+             return {"error": "Email not verified", "code": "NOT_VERIFIED"}
         return None
 
 def process_p2p_transfer(sender_id, amount, recipient_upi_id):

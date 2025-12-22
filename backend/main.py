@@ -12,7 +12,11 @@ app = FastAPI(root_path=os.environ.get("ROOT_PATH", ""))
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,16 +39,12 @@ class UserLogin(BaseModel):
     email: str
     password: str
 
-class VerifyRequest(BaseModel):
-    email: str
-    code: str
-
 @app.post("/signup")
 def signup(user: UserSignup):
     try:
         success = database.create_user(user.name, user.email, user.password)
         if success:
-            return {"message": "User created! Please verify your email.", "status": "PENDING_VERIFICATION"}
+            return {"message": "User created! Please check your email for the confirmation link.", "status": "PENDING_VERIFICATION"}
         raise HTTPException(status_code=400, detail="User already exists")
     except ValueError as e:
         # Password validation error
@@ -53,13 +53,6 @@ def signup(user: UserSignup):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Internal Server Error")
-
-@app.post("/verify-email")
-def verify_email(req: VerifyRequest):
-    success, message = database.verify_email_otp(req.email, req.code)
-    if success:
-        return {"message": message, "status": "VERIFIED"}
-    raise HTTPException(status_code=400, detail=message)
 
 @app.post("/login")
 def login(user_creds: UserLogin):
@@ -165,4 +158,4 @@ def check_risk(tx: TransactionRequest):
     }
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

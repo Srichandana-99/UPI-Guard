@@ -16,18 +16,24 @@ function Signup({ onSwitchToLogin }) {
         setLoading(true);
 
         try {
-            // Sign up using Supabase Auth
-            const { data, error } = await supabase.auth.signUp({
-                email: email,
-                password: password,
-                options: {
-                    data: {
-                        name: name, // Metadata for the trigger
-                    },
+            // Call Backend API
+            const response = await fetch('http://localhost:8000/signup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
                 },
+                body: JSON.stringify({
+                    name: name,
+                    email: email,
+                    password: password,
+                }),
             });
 
-            if (error) throw error;
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || 'Signup failed');
+            }
 
             // Success!
             setSuccess(true);
@@ -125,7 +131,7 @@ function Signup({ onSwitchToLogin }) {
                                 <Lock className="w-5 h-5 text-gray-400 absolute left-3 top-3.5" />
                             </div>
                             <p className="text-xs text-gray-400 mt-1 ml-1">
-                                Min 6 characters (Supabase default)
+                                Min 8 chars, 1 uppercase, 1 number, 1 special char
                             </p>
                         </div>
                     </div>

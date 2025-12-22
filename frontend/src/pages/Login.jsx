@@ -3,7 +3,8 @@ import { Lock, User, ArrowRight, Shield, AlertCircle, Mail } from 'lucide-react'
 import { supabase } from '../supabase';
 
 function Login({ onLogin, onSwitchToSignup }) {
-    const [loginMethod, setLoginMethod] = useState('password'); // 'password' | 'magic_link'
+    // const [loginMethod, setLoginMethod] = useState('password'); // Removed
+
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -17,21 +18,15 @@ function Login({ onLogin, onSwitchToSignup }) {
         setLoading(true);
 
         try {
-            if (loginMethod === 'magic_link') {
-                const { error } = await supabase.auth.signInWithOtp({ email });
-                if (error) throw error;
-                setMessage('Check your email for the login link!');
-            } else {
-                // Password Login
-                const { data, error } = await supabase.auth.signInWithPassword({
-                    email: email,
-                    password: password,
-                });
+            // Password Login
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: email,
+                password: password,
+            });
 
-                if (error) throw error;
-                if (data.user) {
-                    onLogin(data.user);
-                }
+            if (error) throw error;
+            if (data.user) {
+                onLogin(data.user);
             }
         } catch (err) {
             setError(err.message || 'Login failed');
@@ -55,28 +50,7 @@ function Login({ onLogin, onSwitchToSignup }) {
                     </p>
                 </div>
 
-                <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
-                    <button
-                        type="button"
-                        onClick={() => setLoginMethod('password')}
-                        className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${loginMethod === 'password'
-                                ? 'bg-white text-indigo-600 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-900'
-                            }`}
-                    >
-                        Password
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setLoginMethod('magic_link')}
-                        className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${loginMethod === 'magic_link'
-                                ? 'bg-white text-indigo-600 shadow-sm'
-                                : 'text-gray-500 hover:text-gray-900'
-                            }`}
-                    >
-                        Magic Link
-                    </button>
-                </div>
+
 
                 <form className="space-y-6" onSubmit={handleSubmit}>
                     {error && (
@@ -108,22 +82,20 @@ function Login({ onLogin, onSwitchToSignup }) {
                             </div>
                         </div>
 
-                        {loginMethod === 'password' && (
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1 ml-1">Password</label>
-                                <div className="relative">
-                                    <input
-                                        type="password"
-                                        required
-                                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all text-gray-800"
-                                        placeholder="••••••••"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                    />
-                                    <Lock className="w-5 h-5 text-gray-400 absolute left-3 top-3.5" />
-                                </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1 ml-1">Password</label>
+                            <div className="relative">
+                                <input
+                                    type="password"
+                                    required
+                                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all text-gray-800"
+                                    placeholder="••••••••"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                />
+                                <Lock className="w-5 h-5 text-gray-400 absolute left-3 top-3.5" />
                             </div>
-                        )}
+                        </div>
                     </div>
 
                     <div className="flex items-center justify-between text-sm">
@@ -141,7 +113,7 @@ function Login({ onLogin, onSwitchToSignup }) {
                         disabled={loading}
                         className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent text-sm font-bold rounded-xl text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-lg shadow-indigo-200 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                     >
-                        {loading ? 'Processing...' : (loginMethod === 'password' ? 'Sign in' : 'Send Magic Link')}
+                        {loading ? 'Processing...' : 'Sign in'}
                         {!loading && <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />}
                     </button>
                 </form>
