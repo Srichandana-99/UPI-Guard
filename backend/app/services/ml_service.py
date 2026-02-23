@@ -43,21 +43,31 @@ def evaluate_fraud_risk(transaction_data: dict) -> dict:
     probabilities = xgb_model.predict_proba(df)[0]
     fraud_prob = float(probabilities[1])
     
-    # Threshold for fraud
-    # We used 0.5 implicitly in predict(), here we could return the probability as risk_score
-    is_fraudulent = bool(fraud_prob > 0.5)
+    # Threshold for fraud ML probability
+    is_fraud_ml = bool(fraud_prob > 0.5)
 
     risk_factors = []
-    if transaction_data.get('amount', 0) > 10000:
+    amount = transaction_data.get('amount', 0)
+    is_new = transaction_data.get('is_new_receiver', 0)
+    
+    if amount > 10000:
         risk_factors.append("High amount")
     if transaction_data.get('location_mismatch') == 1:
         risk_factors.append("Location mismatch")
-    if transaction_data.get('is_new_receiver') == 1:
+    if is_new == 1:
         risk_factors.append("New receiver")
     if transaction_data.get('hour_of_day', 12) < 6 or transaction_data.get('hour_of_day', 12) >= 23:
         risk_factors.append("Suspicious time")
     if transaction_data.get('velocity_1h', 0) > 5:
         risk_factors.append("High velocity")
+
+    # Hybrid Rule Engine: Deterministic triggers
+    is_fraud_rule = False
+    if amount >= 50000 and is_new == 1:
+        is_fraud_rule = True
+        risk_factors.append("Critical amount to new receiver")
+        
+    is_fraudulent = is_fraud_ml or is_fraud_rule
 
     risk_level = "High" if is_fraudulent else ("Medium" if fraud_prob > 0.2 else "Low")
     decision = "Block" if is_fraudulent else ("Review" if risk_level == "Medium" else "Approve")

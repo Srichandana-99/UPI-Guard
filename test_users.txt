@@ -1,0 +1,48 @@
+# UPI Guard AI Test Users
+
+**Password for all users:** 123456 (or any text)
+
+## 🟢 Normal Users (High Balance, Clean History)
+- **Arjun Kumar** 
+  Email: arjun.kumar@example.com
+  UPI ID: arjun@secureupi
+  Balance: ₹95,000.00
+
+- **Priya Sharma** 
+  Email: priya.sharma@example.com
+  UPI ID: priya.s@secureupi
+  Balance: ₹1,20,500.00
+
+- **Rahul Verma**
+  Email: rahul.verma@example.com
+  UPI ID: rahul.v@secureupi
+  Balance: ₹45,000.00
+
+- **Sneha Reddy**
+  Email: sneha.reddy@example.com
+  UPI ID: sneha.r@secureupi
+  Balance: ₹88,000.00
+
+- **Amit Singh**
+  Email: amit.singh@example.com
+  UPI ID: amit.s@secureupi
+  Balance: ₹2,10,000.00
+
+## 🔴 High-Risk / Fraud Users (Low Balance, Suspicious History)
+- **Vikram Rastogi**
+  Email: vikram.rastogi@example.com
+  UPI ID: vikram.r@secureupi
+  Balance: ₹15,000.00
+  Status: Has recent blocked transcations due to AI Fraud Shield detecting Late-Night High-Value Risk.
+
+- **Neha Gupta**
+  Email: neha.gupta@example.com
+  UPI ID: neha.g@secureupi
+  Balance: ₹3,500.00
+  Status: Has recent blocked transactions due to AI Fraud Shield detecting scam merchants.
+
+- **Karan Mehta**
+  Email: karan.mehta@example.com
+  UPI ID: karan.m@secureupi
+  Balance: ₹8,500.00
+  Status: Has recent blocked transactions due to AI Fraud Shield detecting unverified Crypto exchanges.

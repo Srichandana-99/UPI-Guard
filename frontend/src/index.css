@@ -1,9 +1,23 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+    --color-secure-bg: #05030A;
+    --color-secure-card: #0A0A10;
+    --color-secure-cardInner: #11111A;
+    --color-secure-input: #12121A;
+    --color-secure-blue: #1A21FF;
+    --color-secure-blueHover: #151ADC;
+    --color-secure-text: #FFFFFF;
+    --color-secure-textMuted: #8A8A9E;
+    --color-secure-accent: #00F0FF;
+    --color-secure-success: #00D06C;
+    --color-secure-error: #FF3B30;
+
+    --font-sans: 'Inter', system-ui, sans-serif;
+}
 
 @layer base {
     body {
-        @apply antialiased text-gray-900 bg-gray-50;
+        @apply antialiased text-secure-text bg-secure-bg;
     }
 }

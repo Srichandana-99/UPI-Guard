@@ -3,9 +3,19 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { MainLayout } from './layout/MainLayout'
 import { Dashboard } from './pages/Dashboard'
+import { History } from './pages/History'
 import { SendMoney } from './pages/SendMoney'
 import { Login } from './pages/Login'
+import { Register } from './pages/Register'
+import { VerifyOTP } from './pages/VerifyOTP'
+import { ResetPin } from './pages/ResetPin'
+import { ScanQR } from './pages/ScanQR'
+import { MyQR } from './pages/MyQR'
+import { Profile } from './pages/Profile'
+import { PersonalInfo } from './pages/PersonalInfo'
+import { SupportCenter } from './pages/SupportCenter'
 import { AdminLayout } from './layout/admin/AdminLayout'
+import { AdminLogin } from './pages/admin/AdminLogin'
 import { Dashboard as AdminDashboard } from './pages/admin/Dashboard'
 import { Users as AdminUsers } from './pages/admin/Users'
 import { Transactions as AdminTransactions } from './pages/admin/Transactions'
@@ -22,7 +32,7 @@ const ProtectedRoute = ({ children }) => {
 const ProtectedAdminRoute = ({ children }) => {
     const { user, loading } = useAuth()
     if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
-    if (!user) return <Navigate to="/login" replace />
+    if (!user) return <Navigate to="/admin/login" replace />
     if (user.role !== 'admin') return <Navigate to="/" replace /> // Redirect non-admins to user dashboard
     return children
 }
@@ -31,14 +41,24 @@ const AppRoutes = () => {
     return (
         <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/verify-otp" element={<VerifyOTP />} />
+            <Route path="/reset-pin" element={<ResetPin />} />
 
             {/* User Routes */}
             <Route path="/" element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
                 <Route index element={<Dashboard />} />
+                <Route path="history" element={<History />} />
                 <Route path="send" element={<SendMoney />} />
+                <Route path="scan" element={<ScanQR />} />
+                <Route path="receive" element={<MyQR />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="personal-info" element={<PersonalInfo />} />
+                <Route path="support" element={<SupportCenter />} />
             </Route>
 
             {/* Admin Routes */}
+            <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin" element={<ProtectedAdminRoute><AdminLayout /></ProtectedAdminRoute>}>
                 <Route index element={<AdminDashboard />} />
                 <Route path="users" element={<AdminUsers />} />
