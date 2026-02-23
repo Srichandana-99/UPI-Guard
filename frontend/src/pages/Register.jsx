@@ -21,11 +21,22 @@ export function Register() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        // TODO: Connect to backend for OTP generation
-        setTimeout(() => {
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || 'Registration failed');
+
+            navigate('/verify-otp', { state: { email: formData.email } });
+        } catch (error) {
+            console.error(error);
+            alert(error.message);
+        } finally {
             setLoading(false);
-            navigate('/verify-otp');
-        }, 1000);
+        }
     };
 
     return (

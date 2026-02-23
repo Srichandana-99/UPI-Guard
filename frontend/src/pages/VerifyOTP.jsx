@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Shield, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -7,6 +7,8 @@ export function VerifyOTP() {
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
+    const email = location.state?.email;
 
     const handleChange = (element, index) => {
         if (isNaN(element.value)) return false;
@@ -22,11 +24,24 @@ export function VerifyOTP() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        // Connect to backend verification here
-        setTimeout(() => {
+        const code = otp.join('');
+
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify-otp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, otp: code })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || 'Verification failed');
+
+            navigate('/login'); // Redirect to login
+        } catch (error) {
+            console.error(error);
+            alert(error.message);
+        } finally {
             setLoading(false);
-            navigate('/'); // Redirect to dashboard
-        }, 1500);
+        }
     };
 
     return (

@@ -44,14 +44,25 @@ async def register(req: RegisterRequest):
             "role": "admin" if "admin" in req.email.lower() else "user"
         }
         res = supabase_client.table('users').insert(user_data).execute()
-        return {"success": True, "message": "OTP sent to your email/mobile"}
+        
+        # Trigger the Supabase Email OTP
+        supabase_client.auth.sign_in_with_otp({"email": req.email})
+        
+        return {"success": True, "message": "OTP sent to your email"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/verify-otp")
 async def verify_otp(req: VerifyOTPRequest):
     check_db()
-    
+    # Verify OTP against Supabase Auth
+    try:
+        session = supabase_client.auth.verify_otp({"email": req.email, "token": req.otp, "type": "email"})
+        if not session.user:
+            raise Exception("Invalid OTP Code")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid OTP Code: {str(e)}")
+
     res = supabase_client.table('users').select('*').eq('email', req.email).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="User not found. Please register first.")
