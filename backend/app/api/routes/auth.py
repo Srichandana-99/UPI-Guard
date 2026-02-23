@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 import uuid
+from app.db.supabase import supabase_client
 
 router = APIRouter()
 
@@ -19,148 +20,84 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
-# Mock database for MVP demo
-mock_db = {
-    "arjun.kumar@example.com": {
-        "user_id": str(uuid.uuid4()),
-        "full_name": "Arjun Kumar",
-        "email": "arjun.kumar@example.com",
-        "mobile": "+91 98765 43210",
-        "upi_id": "arjun@secureupi",
-        "balance": 95000.00,
-        "verified": True,
-        "is_fraud_risk": False
-    },
-    "priya.sharma@example.com": {
-        "user_id": str(uuid.uuid4()),
-        "full_name": "Priya Sharma",
-        "email": "priya.sharma@example.com",
-        "mobile": "+91 98765 43211",
-        "upi_id": "priya.s@secureupi",
-        "balance": 120500.00,
-        "verified": True,
-        "is_fraud_risk": False
-    },
-    "rahul.verma@example.com": {
-        "user_id": str(uuid.uuid4()),
-        "full_name": "Rahul Verma",
-        "email": "rahul.verma@example.com",
-        "mobile": "+91 98765 43212",
-        "upi_id": "rahul.v@secureupi",
-        "balance": 45000.00,
-        "verified": True,
-        "is_fraud_risk": False
-    },
-    "sneha.reddy@example.com": {
-        "user_id": str(uuid.uuid4()),
-        "full_name": "Sneha Reddy",
-        "email": "sneha.reddy@example.com",
-        "mobile": "+91 98765 43213",
-        "upi_id": "sneha.r@secureupi",
-        "balance": 88000.00,
-        "verified": True,
-        "is_fraud_risk": False
-    },
-    "amit.singh@example.com": {
-        "user_id": str(uuid.uuid4()),
-        "full_name": "Amit Singh",
-        "email": "amit.singh@example.com",
-        "mobile": "+91 98765 43214",
-        "upi_id": "amit.s@secureupi",
-        "balance": 210000.00,
-        "verified": True,
-        "is_fraud_risk": False
-    },
-    # Fraud Risk Users (3)
-    "vikram.rastogi@example.com": {
-        "user_id": str(uuid.uuid4()),
-        "full_name": "Vikram Rastogi",
-        "email": "vikram.rastogi@example.com",
-        "mobile": "+91 98765 43215",
-        "upi_id": "vikram.r@secureupi",
-        "balance": 15000.00,
-        "verified": True,
-        "is_fraud_risk": True
-    },
-    "neha.gupta@example.com": {
-        "user_id": str(uuid.uuid4()),
-        "full_name": "Neha Gupta",
-        "email": "neha.gupta@example.com",
-        "mobile": "+91 98765 43216",
-        "upi_id": "neha.g@secureupi",
-        "balance": 3500.00,
-        "verified": True,
-        "is_fraud_risk": True
-    },
-    "karan.mehta@example.com": {
-        "user_id": str(uuid.uuid4()),
-        "full_name": "Karan Mehta",
-        "email": "karan.mehta@example.com",
-        "mobile": "+91 98765 43217",
-        "upi_id": "karan.m@secureupi",
-        "balance": 8500.00,
-        "verified": True,
-        "is_fraud_risk": True
-    }
-}
+def check_db():
+    if not supabase_client:
+        raise HTTPException(status_code=500, detail="Database not configured (SUPABASE_URL and SUPABASE_KEY missing in .env)")
 
 @router.post("/register")
 async def register(req: RegisterRequest):
+    check_db()
+    
+    # Check if user exists
+    existing_user = supabase_client.table('users').select('*').eq('email', req.email).execute()
+    if existing_user.data:
+        raise HTTPException(status_code=400, detail="User already registered")
+
     try:
-        mock_db[req.email] = {
-            "user_id": str(uuid.uuid4()),
+        user_data = {
             "full_name": req.fullName,
             "email": req.email,
             "mobile": req.mobile,
             "upi_id": req.email.split("@")[0].lower() + "@secureupi",
             "balance": 82450.00,  # Auto-fill high balance per requirements
-            "verified": False
+            "verified": False,
+            "role": "admin" if "admin" in req.email.lower() else "user"
         }
+        res = supabase_client.table('users').insert(user_data).execute()
         return {"success": True, "message": "OTP sent to your email/mobile"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/verify-otp")
 async def verify_otp(req: VerifyOTPRequest):
-    if req.email not in mock_db:
-        # If user tested without hitting register first
+    check_db()
+    
+    res = supabase_client.table('users').select('*').eq('email', req.email).execute()
+    if not res.data:
         raise HTTPException(status_code=404, detail="User not found. Please register first.")
         
-    mock_db[req.email]["verified"] = True
+    updated = supabase_client.table('users').update({"verified": True}).eq('email', req.email).execute()
     
-    user_data = mock_db[req.email]
-    return {
-        "success": True,
-        "token": "mock_jwt_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
-        "user": user_data
-    }
+    if updated.data:
+        user_data = updated.data[0]
+        return {
+            "success": True,
+            "token": "mock-session-token",
+            "user": user_data
+        }
+    raise HTTPException(status_code=500, detail="Failed to verify user")
 
 @router.post("/login")
 async def login(req: LoginRequest):
-    role = "admin" if "admin" in req.email.lower() else "user"
-    if req.email in mock_db:
-        user_data = mock_db[req.email]
-        user_data["role"] = role
+    check_db()
+    
+    res = supabase_client.table('users').select('*').eq('email', req.email).execute()
+    if res.data:
+        user_data = res.data[0]
         return {
             "success": True,
-            "token": "mock_jwt_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+            "token": "mock-session-token",
             "user": user_data
         }
     
-    # Mocking a login fallback if user hasn't registered a session yet during testing
+    # Fallback for demo simplicity: auto-register if they login without registering first
+    role = "admin" if "admin" in req.email.lower() else "user"
     user_data = {
-        "user_id": str(uuid.uuid4()),
         "full_name": "Admin User" if role == "admin" else "Demo User",
         "email": req.email,
-        "mobile": req.email,
+        "mobile": "0000000000",
         "upi_id": req.email.split('@')[0].lower() + "@secureupi",
         "balance": 82450.00,
         "verified": True,
         "role": role
     }
-    mock_db[req.email] = user_data
-    return {
-        "success": True,
-        "token": "mock_jwt_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
-        "user": user_data
-    }
+    
+    new_user = supabase_client.table('users').insert(user_data).execute()
+    if new_user.data:
+        return {
+            "success": True,
+            "token": "mock-session-token",
+            "user": new_user.data[0]
+        }
+        
+    raise HTTPException(status_code=500, detail="Login failed")
