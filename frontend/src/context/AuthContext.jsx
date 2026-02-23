@@ -9,11 +9,16 @@ export const AuthProvider = ({ children }) => {
     // supabase.auth.getSession().then(...)
 
     // For the MVP demonstration, we mock a logged in user state initially
-    const [user, setUser] = useState({ id: 'user123', name: 'Demo User', upi_id: 'demo@upi' })
+    const [user, setUser] = useState({ id: 'user123', name: 'Demo User', upi_id: 'demo@upi', role: 'admin' })
     const [loading, setLoading] = useState(false)
 
     const login = async (email, password) => {
-        setUser({ id: 'user123', name: 'Demo User', upi_id: 'demo@upi' })
+        // If demo admin
+        if (email === 'admin@upiguard.com') {
+            setUser({ id: 'admin1', name: 'Admin', upi_id: 'admin@upi', role: 'admin' })
+        } else {
+            setUser({ id: 'user123', name: 'Demo User', upi_id: 'demo@upi', role: 'user' })
+        }
     }
 
     const logout = async () => {
