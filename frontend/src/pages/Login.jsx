@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Shield, Fingerprint, User, CheckCircle2, Zap } from 'lucide-react'
+import { Shield, Fingerprint, User, CheckCircle2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 export function Login() {
@@ -21,30 +21,6 @@ export function Login() {
         } catch (err) {
             setError(err?.message || 'Failed to send OTP')
         }
-    }
-
-    // Temporary test login for UI testing
-    const handleTestLogin = async () => {
-        const testEmail = 'test@demo.com'
-        const testUser = {
-            id: 'test-user-123',
-            full_name: 'Test User',
-            email: testEmail,
-            upi_id: 'test@secureupi',
-            qr_code: 'upi://pay?pa=test@secureupi&pn=Test%20User&mc=0000&tid=TEST123',
-            balance: 50000.00,
-            role: 'user',
-            verified: true
-        }
-        
-        // Log location for test login
-        logUserLocation(testEmail, 'test_login')
-        
-        // Store test user in localStorage (same as AuthContext)
-        localStorage.setItem('user', JSON.stringify(testUser))
-        
-        // Reload to trigger auth context update
-        window.location.href = '/'
     }
 
     return (
@@ -120,17 +96,6 @@ export function Login() {
                             </button>
                         </div>
                     </form>
-
-                    <div className="mt-4">
-                        <button
-                            onClick={handleTestLogin}
-                            className="w-full bg-[#1C1C26] border border-dashed border-secure-blue/50 hover:bg-secure-blue/10 text-secure-blue font-semibold rounded-2xl py-3 transition-colors text-sm flex items-center justify-center gap-2"
-                        >
-                            <Zap className="w-4 h-4" />
-                            Test Login (Skip OTP)
-                        </button>
-                        <p className="text-[10px] text-secure-textMuted text-center mt-2">For UI testing only</p>
-                    </div>
 
                     <div className="mt-6 flex items-center gap-4">
                         <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-[#2A2A38]"></div>

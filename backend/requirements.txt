@@ -2,8 +2,11 @@ fastapi
 uvicorn
 pydantic
 pydantic-settings
-supabase
+sqlalchemy
+psycopg2-binary
+alembic
 xgboost
 scikit-learn
 pandas
 joblib
+python-multipart

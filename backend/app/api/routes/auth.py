@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import uuid
 from app.db.supabase import supabase_client
+from app.core.config import settings
+from typing import Optional
 
 router = APIRouter()
 
@@ -18,7 +20,8 @@ class VerifyOTPRequest(BaseModel):
 
 class LoginRequest(BaseModel):
     email: str
-    password: str
+    # Password is not used for OTP-based auth, kept optional for UI compatibility.
+    password: Optional[str] = None
 
 def check_db():
     if not supabase_client:
@@ -34,14 +37,15 @@ async def register(req: RegisterRequest):
         raise HTTPException(status_code=400, detail="User already registered")
 
     try:
+        role = "admin" if req.email.strip().lower() in settings.admin_emails_set else "user"
         user_data = {
             "full_name": req.fullName,
             "email": req.email,
             "mobile": req.mobile,
             "upi_id": req.email.split("@")[0].lower() + "@secureupi",
-            "balance": 82450.00,  # Auto-fill high balance per requirements
+            "balance": 0.00,
             "verified": False,
-            "role": "admin" if "admin" in req.email.lower() else "user"
+            "role": role
         }
         res = supabase_client.table('users').insert(user_data).execute()
         
@@ -71,9 +75,17 @@ async def verify_otp(req: VerifyOTPRequest):
     
     if updated.data:
         user_data = updated.data[0]
+        access_token = None
+        try:
+            sess = getattr(session, "session", None)
+            access_token = getattr(sess, "access_token", None) if sess else None
+            if access_token is None and isinstance(session, dict):
+                access_token = (session.get("session") or {}).get("access_token")
+        except Exception:
+            access_token = None
         return {
             "success": True,
-            "token": "mock-session-token",
+            "token": access_token,
             "user": user_data
         }
     raise HTTPException(status_code=500, detail="Failed to verify user")
@@ -83,32 +95,14 @@ async def login(req: LoginRequest):
     check_db()
     
     res = supabase_client.table('users').select('*').eq('email', req.email).execute()
-    if res.data:
-        user_data = res.data[0]
-        return {
-            "success": True,
-            "token": "mock-session-token",
-            "user": user_data
-        }
-    
-    # Fallback for demo simplicity: auto-register if they login without registering first
-    role = "admin" if "admin" in req.email.lower() else "user"
-    user_data = {
-        "full_name": "Admin User" if role == "admin" else "Demo User",
-        "email": req.email,
-        "mobile": "0000000000",
-        "upi_id": req.email.split('@')[0].lower() + "@secureupi",
-        "balance": 82450.00,
-        "verified": True,
-        "role": role
-    }
-    
-    new_user = supabase_client.table('users').insert(user_data).execute()
-    if new_user.data:
-        return {
-            "success": True,
-            "token": "mock-session-token",
-            "user": new_user.data[0]
-        }
-        
-    raise HTTPException(status_code=500, detail="Login failed")
+    if not res.data:
+        raise HTTPException(status_code=404, detail="User not found. Please register first.")
+
+    user_data = res.data[0]
+    # Always use OTP for sign-in; do not issue mock tokens.
+    try:
+        supabase_client.auth.sign_in_with_otp({"email": req.email})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to send OTP: {str(e)}")
+
+    return {"success": True, "message": "OTP sent to your email", "user": {"email": user_data.get("email")}}

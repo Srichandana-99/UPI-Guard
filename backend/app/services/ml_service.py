@@ -22,9 +22,6 @@ def evaluate_fraud_risk(transaction_data: dict) -> dict:
     Expects dictionary containing model features: 
     amount, hour_of_day, location_mismatch, is_new_receiver, velocity_1h
     """
-    if not xgb_model:
-        return {"error": "Model not loaded properly."}
-
     # Extract features matching the synthetic dataset structure
     input_features = {
         'amount': [transaction_data.get('amount', 0)],
@@ -36,15 +33,17 @@ def evaluate_fraud_risk(transaction_data: dict) -> dict:
 
     df = pd.DataFrame(input_features)
     
-    # Ensure columns match training order exactly
-    df = df[feature_names]
-
-    # Predict probability of fraud (class 1)
-    probabilities = xgb_model.predict_proba(df)[0]
-    fraud_prob = float(probabilities[1])
+    fraud_prob = 0.0
+    model_loaded = bool(xgb_model)
+    if model_loaded:
+        # Ensure columns match training order exactly (when available)
+        if feature_names:
+            df = df[feature_names]
+        probabilities = xgb_model.predict_proba(df)[0]
+        fraud_prob = float(probabilities[1])
     
     # Threshold for fraud ML probability
-    is_fraud_ml = bool(fraud_prob > 0.5)
+    is_fraud_ml = bool(model_loaded and fraud_prob > 0.5)
 
     risk_factors = []
     amount = transaction_data.get('amount', 0)
@@ -77,5 +76,6 @@ def evaluate_fraud_risk(transaction_data: dict) -> dict:
         "is_fraudulent": is_fraudulent,
         "risk_level": risk_level,
         "decision": decision,
-        "risk_factors": risk_factors
+        "risk_factors": risk_factors,
+        "model_loaded": model_loaded
     }

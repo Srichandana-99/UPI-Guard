@@ -30,7 +30,7 @@ async def get_all_users():
             "upi": user_data.get("upi_id"),
             "email": user_data.get("email"),
             "status": status,
-            "joined": "Oct 24, 2023", # Placeholder since we didn't add created_at
+            "joined": user_data.get("created_at"),
             "riskTier": risk_tier,
             "balance": balance
         })
@@ -96,11 +96,17 @@ async def get_fraud_alerts():
         # Compute total attempted value from blocked txns for this user
         user_blocked = [t for t in blocked_txns if t.get("sender_email") == email]
         total_attempted = sum([float(t.get("amount", 0)) for t in user_blocked])
+
+        blocked_count = len(user_blocked)
+        # Heuristic score derived from real activity (no fixed mock value).
+        # Base risk for flagged users + weighted by blocked count and attempted volume.
+        score = 30 + (blocked_count * 12) + min(40, int(total_attempted / 5000))
+        score = max(0, min(100, score))
         
         watchlist.append({
             "name": user.get("full_name"),
             "upi": user.get("upi_id"),
-            "score": "95", # Mock score
+            "score": str(score),
             "total": f"₹{total_attempted / 100000:.1f}L" if total_attempted > 100000 else f"₹{total_attempted}",
             "blocked": len(user_blocked)
         })
@@ -117,12 +123,35 @@ async def get_analytics():
     
     users_res = supabase_client.table('users').select('user_id', count='exact').execute()
     txns_res = supabase_client.table('transactions').select('*').execute()
+    fraud_users_res = supabase_client.table('users').select('user_id', count='exact').eq('is_fraud_risk', True).execute()
     
     txns = txns_res.data or []
     total_users = users_res.count if hasattr(users_res, 'count') else len((supabase_client.table('users').select('user_id').execute()).data or [])
     total_txns = len(txns)
     blocked_txns = len([t for t in txns if t.get("status") == "Blocked"])
     total_volume = sum([float(t.get("amount", 0)) for t in txns if t.get("status") == "Completed"])
+
+    fraud_users = fraud_users_res.count if hasattr(fraud_users_res, 'count') else len((fraud_users_res.data or []))
+    blocked_rate = (blocked_txns / total_txns) if total_txns else 0.0
+    fraud_user_rate = (fraud_users / total_users) if total_users else 0.0
+    # Threat level based on real ratios; bounded to 0..100.
+    system_threat_level = int(min(100, round((blocked_rate * 85) + (fraud_user_rate * 35))))
+
+    # Risk distribution derived from real transactions
+    dist_counts = {"safe": 0, "low": 0, "high": 0, "critical": 0}
+    for t in txns:
+        status = t.get("status")
+        amount = float(t.get("amount", 0) or 0)
+        if status == "Blocked":
+            dist_counts["critical"] += 1
+        elif amount > 10000:
+            dist_counts["high"] += 1
+        elif amount <= 1000:
+            dist_counts["safe"] += 1
+        else:
+            dist_counts["low"] += 1
+    dist_total = max(1, total_txns)
+    dist_pct = {k: round((v / dist_total) * 100, 2) for k, v in dist_counts.items()}
     
     return {
         "success": True,
@@ -131,7 +160,11 @@ async def get_analytics():
             "total_transactions": total_txns,
             "blocked_transactions": blocked_txns,
             "total_volume": total_volume,
-            "system_threat_level": 84 if blocked_txns > 0 else 15
+            "system_threat_level": system_threat_level,
+            "risk_distribution": {
+                "counts": dist_counts,
+                "percentages": dist_pct
+            }
         }
     }
 

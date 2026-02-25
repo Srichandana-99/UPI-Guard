@@ -1,1 +1,1 @@
-from app.api.routes.fraud import router
+# Routes are imported directly in main.py for PostgreSQL version

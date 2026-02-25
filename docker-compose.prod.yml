@@ -1,0 +1,87 @@
+# Production deployment configuration
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: upiguard-postgres
+    environment:
+      POSTGRES_DB: upiguard
+      POSTGRES_USER: upiguard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-upiguard123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - upiguard-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U upiguard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: upiguard-backend
+    environment:
+      - DATABASE_URL=postgresql://upiguard:${POSTGRES_PASSWORD:-upiguard123}@postgres:5432/upiguard
+      - ADMIN_EMAILS=${ADMIN_EMAILS:-admin@upiguard.com}
+      - ENVIRONMENT=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - upiguard-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: upiguard-frontend
+    environment:
+      - VITE_API_URL=${API_URL:-http://localhost/api/v1}
+    depends_on:
+      - backend
+    networks:
+      - upiguard-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: upiguard-nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - upiguard-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  upiguard-network:
+    driver: bridge
