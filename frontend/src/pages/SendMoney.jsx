@@ -1,31 +1,76 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ChevronLeft, Info, CheckCircle2, Menu, Shield, Lock, AlertTriangle, Share2, Download, ArrowLeft } from 'lucide-react';
+import { ChevronLeft, Info, CheckCircle2, Menu, Shield, Lock, AlertTriangle, Share2, Download, ArrowLeft, XCircle, User, CheckCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function SendMoney() {
     const [amount, setAmount] = useState('');
-    const [recipient, setRecipient] = useState('alex.pay@secureupi');
+    const [recipient, setRecipient] = useState('');
+    const [recipientName, setRecipientName] = useState('');
+    const [recipientVerified, setRecipientVerified] = useState(false);
+    const [validatingUPI, setValidatingUPI] = useState(false);
+    const [upiError, setUpiError] = useState('');
     const [message, setMessage] = useState('');
     const [pin, setPin] = useState(['', '', '', '']);
     const [showPinModal, setShowPinModal] = useState(false);
-    const [showReceipt, setShowReceipt] = useState(false);
+    const [paymentStatus, setPaymentStatus] = useState(null); // 'success', 'failed', 'fraud', null
     const [loading, setLoading] = useState(false);
     const [fraudResult, setFraudResult] = useState(null);
+    const [transactionData, setTransactionData] = useState(null);
 
     const navigate = useNavigate();
     const location = useLocation();
-    const { user } = useAuth(); // We'll get sender info from auth
+    const { user, logUserLocation } = useAuth();
 
     // Check if we arrived from the QR Scanner
     React.useEffect(() => {
         if (location.state?.scannedUpiId) {
             setRecipient(location.state.scannedUpiId);
-            // Optional: clear the state so it doesn't persist on refresh
+            validateRecipient(location.state.scannedUpiId);
             window.history.replaceState({}, document.title)
         }
     }, [location]);
+
+    // Validate UPI ID when recipient changes (with debounce)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (recipient && recipient.length > 5) {
+                validateRecipient(recipient);
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [recipient]);
+
+    const validateRecipient = async (upiId) => {
+        if (!upiId || upiId.length < 5) return;
+        
+        setValidatingUPI(true);
+        setUpiError('');
+        setRecipientVerified(false);
+        
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/transaction/validate-upi`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ upi_id: upiId })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                setRecipientName(data.name);
+                setRecipientVerified(true);
+            } else {
+                setUpiError('UPI ID not found');
+                setRecipientVerified(false);
+            }
+        } catch (err) {
+            setUpiError('Unable to validate UPI ID');
+            setRecipientVerified(false);
+        } finally {
+            setValidatingUPI(false);
+        }
+    };
 
     const handleAmountChange = (e) => {
         // Only allow numbers
@@ -40,6 +85,10 @@ export function SendMoney() {
 
     const initiatePayment = () => {
         if (!amount || parseInt(amount) <= 0) return;
+        if (!recipientVerified) {
+            setUpiError('Please enter a valid UPI ID');
+            return;
+        }
         setShowPinModal(true);
     };
 
@@ -59,7 +108,11 @@ export function SendMoney() {
         setLoading(true);
 
         try {
-            // Connect to the transactional backend which checks fraud internally
+            // Log location for transaction
+            if (user?.email) {
+                logUserLocation(user.email, 'transaction');
+            }
+
             const response = await fetch(`${import.meta.env.VITE_API_URL}/transaction/transfer`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -71,26 +124,40 @@ export function SendMoney() {
                 }),
             });
 
-            if (!response.ok) throw new Error('Network error');
-
             const data = await response.json();
-            setFraudResult(data.fraud_details);
+            
+            if (!response.ok) {
+                throw new Error(data.detail || 'Transaction failed');
+            }
 
-            // We can also use data.new_balance to update context/state if needed
+            setFraudResult(data.fraud_details);
+            setTransactionData({
+                amount: parseFloat(amount),
+                recipient: recipientName,
+                recipientUpi: recipient,
+                transactionId: data.fraud_details?.transaction_id || `txn_${Date.now()}`,
+                date: new Date().toLocaleString(),
+            });
+
+            if (data.success) {
+                setPaymentStatus('success');
+            } else if (data.fraud_details?.decision === 'Block') {
+                setPaymentStatus('fraud');
+            } else {
+                setPaymentStatus('failed');
+            }
 
             setShowPinModal(false);
-            setShowReceipt(true);
         } catch (err) {
             console.error(err);
-            // Fallback mockup response
-            setFraudResult({
-                decision: 'Approve',
-                risk_score: 0.02,
-                risk_level: 'Low',
-                is_fraudulent: false
+            setPaymentStatus('failed');
+            setTransactionData({
+                amount: parseFloat(amount),
+                recipient: recipientName || recipient,
+                recipientUpi: recipient,
+                error: err.message,
             });
             setShowPinModal(false);
-            setShowReceipt(true);
         } finally {
             setLoading(false);
         }
@@ -146,24 +213,183 @@ export function SendMoney() {
     );
 
     // ----------------------------------------------------------------------
-    // RECEIPT SCREEN
+    // PAYMENT STATUS SCREENS (Success / Failed / Fraud)
     // ----------------------------------------------------------------------
-    if (showReceipt && fraudResult) {
-        const isBlocked = fraudResult.decision === 'Block';
-
-        if (isBlocked) {
-            // ... (Keep existing blocked UI for fraud cases)
+    if (paymentStatus) {
+        // SUCCESS SCREEN
+        if (paymentStatus === 'success') {
             return (
-                <div className="min-h-screen bg-[#05030A] flex flex-col items-center pt-8 p-6 text-secure-text pb-24">
+                <div className="min-h-screen bg-[#05030A] flex flex-col items-center pt-8 p-6 text-white pb-24 relative overflow-hidden">
+                    {/* Confetti animation */}
+                    {[...Array(15)].map((_, i) => (
+                        <motion.div
+                            key={i}
+                            className="absolute w-2 h-2 rounded-full"
+                            style={{
+                                backgroundColor: ['#1A21FF', '#00D06C', '#FFD1A6'][i % 3],
+                                left: `${Math.random() * 100}%`,
+                                top: -10,
+                            }}
+                            animate={{
+                                y: [0, 800],
+                                x: [0, (Math.random() - 0.5) * 150],
+                                rotate: [0, 360],
+                            }}
+                            transition={{
+                                duration: 2 + Math.random() * 1.5,
+                                ease: "easeOut",
+                                delay: Math.random() * 0.3,
+                            }}
+                        />
+                    ))}
+                    
+                    <div className="w-full max-w-md flex flex-col items-center z-10">
+                        <div className="w-full flex justify-between items-center mb-10">
+                            <button onClick={() => navigate('/')} className="w-10 h-10 rounded-full bg-[#12101B] border border-[#1C1C26] flex items-center justify-center hover:bg-[#1A1825] transition-colors">
+                                <ArrowLeft className="w-5 h-5 text-white" />
+                            </button>
+                            <h2 className="text-lg font-bold">Payment Successful</h2>
+                            <div className="w-10"></div>
+                        </div>
+
+                        <motion.div
+                            initial={{ scale: 0, rotate: -180 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                            className="mb-8"
+                        >
+                            <div className="w-28 h-28 rounded-full bg-[#00D06C] flex items-center justify-center shadow-[0_0_40px_rgba(0,208,108,0.4)]">
+                                <CheckCircle2 className="w-14 h-14 text-white" strokeWidth={3} />
+                            </div>
+                        </motion.div>
+
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                            className="text-center mb-8"
+                        >
+                            <h1 className="text-4xl font-extrabold mb-2">₹{parseFloat(transactionData?.amount || 0).toLocaleString('en-IN')}</h1>
+                            <p className="text-[#8A8A9E]">Sent to {transactionData?.recipient}</p>
+                        </motion.div>
+
+                        <motion.div
+                            initial={{ y: 30, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.4 }}
+                            className="w-full bg-[#0A0A10] border border-[#1C1C26] rounded-3xl p-6 mb-8"
+                        >
+                            <div className="space-y-4 text-sm">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[#8A8A9E]">Transaction ID</span>
+                                    <span className="font-mono text-white">{transactionData?.transactionId?.slice(-12)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[#8A8A9E]">To</span>
+                                    <span className="text-white">{transactionData?.recipientUpi}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[#8A8A9E]">Date</span>
+                                    <span className="text-white">{transactionData?.date}</span>
+                                </div>
+                                <div className="flex justify-between items-center pt-2 border-t border-[#1C1C26]">
+                                    <span className="text-white font-bold">Status</span>
+                                    <div className="flex items-center gap-1.5 text-[#00D06C] font-semibold">
+                                        <span className="w-2 h-2 rounded-full bg-[#00D06C]"></span>
+                                        Completed
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+
+                        <motion.button
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.6 }}
+                            onClick={() => navigate('/history')}
+                            className="w-full bg-[#0014FF] hover:bg-blue-700 text-white font-bold rounded-2xl py-4"
+                        >
+                            View in History
+                        </motion.button>
+                    </div>
+                </div>
+            );
+        }
+
+        // FAILURE SCREEN
+        if (paymentStatus === 'failed') {
+            return (
+                <div className="min-h-screen bg-[#05030A] flex flex-col items-center pt-8 p-6 text-white pb-24">
+                    <div className="w-full max-w-md flex flex-col items-center z-10">
+                        <div className="w-full flex justify-between items-center mb-10">
+                            <button onClick={() => setPaymentStatus(null)} className="w-10 h-10 rounded-full bg-[#12101B] border border-[#1C1C26] flex items-center justify-center">
+                                <ArrowLeft className="w-5 h-5 text-white" />
+                            </button>
+                            <h2 className="text-lg font-bold">Payment Failed</h2>
+                            <div className="w-10"></div>
+                        </div>
+
+                        <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: "spring", stiffness: 200 }}
+                            className="mb-8"
+                        >
+                            <div className="w-28 h-28 rounded-full bg-red-500 flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.4)]">
+                                <XCircle className="w-14 h-14 text-white" strokeWidth={3} />
+                            </div>
+                        </motion.div>
+
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                            className="text-center mb-8"
+                        >
+                            <h1 className="text-3xl font-extrabold mb-2 text-red-400">Payment Failed</h1>
+                            <p className="text-[#8A8A9E]">{transactionData?.error || 'Something went wrong'}</p>
+                        </motion.div>
+
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.3 }}
+                            className="w-full bg-red-500/10 border border-red-500/20 rounded-2xl p-4 mb-8"
+                        >
+                            <div className="flex items-start gap-3">
+                                <AlertTriangle className="w-5 h-5 shrink-0 text-red-500" />
+                                <div>
+                                    <h4 className="font-bold text-sm mb-1 text-red-400">Transaction Not Completed</h4>
+                                    <p className="text-xs text-[#8A8A9E]">No money was deducted from your account. Please try again.</p>
+                                </div>
+                            </div>
+                        </motion.div>
+
+                        <motion.button
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: 0.4 }}
+                            onClick={() => setPaymentStatus(null)}
+                            className="w-full bg-[#12101B] border border-[#232332] hover:bg-[#1A1825] text-white font-bold rounded-2xl py-4"
+                        >
+                            Try Again
+                        </motion.button>
+                    </div>
+                </div>
+            );
+        }
+
+        // FRAUD BLOCKED SCREEN
+        if (paymentStatus === 'fraud') {
+            return (
+                <div className="min-h-screen bg-[#05030A] flex flex-col items-center pt-8 p-6 text-white pb-24">
                     <div className="w-full max-w-md space-y-6">
                         <div className="flex justify-between items-center mb-6">
-                            <button onClick={() => navigate(-1)} className="w-10 h-10 rounded-full bg-[#1A1825] flex items-center justify-center">
+                            <button onClick={() => navigate('/')} className="w-10 h-10 rounded-full bg-[#1A1825] flex items-center justify-center">
                                 <ChevronLeft className="w-5 h-5 text-white" />
                             </button>
                             <h2 className="text-lg font-bold tracking-widest text-[#8A8A9E] uppercase">Blocked</h2>
-                            <button className="w-10 h-10 rounded-full bg-[#1A1825] flex items-center justify-center text-white">
-                                ...
-                            </button>
+                            <div className="w-10"></div>
                         </div>
 
                         <motion.div
@@ -172,17 +398,8 @@ export function SendMoney() {
                             className="w-full bg-[#12101B] border border-red-500/30 rounded-[2rem] p-6 shadow-2xl"
                         >
                             <div className="flex flex-col items-center mb-8 bg-[#1A1825] rounded-2xl py-4 mx-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Shield className="w-3 h-3 text-red-500" />
-                                    <span className="text-[10px] uppercase tracking-widest font-bold text-[#8A8A9E]">Trust Score</span>
-                                </div>
-                                <div className="flex items-baseline gap-1 mb-2">
-                                    <span className="text-4xl font-extrabold text-white">{(100 - fraudResult.risk_score * 100).toFixed(0)}</span>
-                                    <span className="text-sm font-bold text-[#8A8A9E]">/ 100</span>
-                                </div>
-                                <div className="w-48 h-1 bg-[#05030A] rounded-full overflow-hidden">
-                                    <div className="h-full bg-red-500" style={{ width: `${100 - fraudResult.risk_score * 100}%` }}></div>
-                                </div>
+                                <Shield className="w-8 h-8 text-red-500 mb-2" />
+                                <span className="text-[10px] uppercase tracking-widest font-bold text-[#8A8A9E]">AI Fraud Shield</span>
                             </div>
 
                             <div className="text-center mb-8">
@@ -190,110 +407,30 @@ export function SendMoney() {
                                     <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
                                     Transaction Blocked
                                 </div>
-                                <h1 className="text-4xl font-extrabold text-white mb-2">₹{parseFloat(amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h1>
+                                <h1 className="text-4xl font-extrabold text-white mb-2">₹{parseFloat(transactionData?.amount || 0).toLocaleString('en-IN')}</h1>
                                 <p className="text-sm text-[#8A8A9E]">Fraud detected. Transfer stopped.</p>
                             </div>
+
                             <div className="mt-6 p-4 rounded-2xl border bg-red-500/5 border-red-500/20">
                                 <div className="flex items-start gap-3">
                                     <Shield className="w-5 h-5 shrink-0 text-red-500" />
                                     <div>
-                                        <h4 className="font-bold text-sm mb-1 text-red-500">Fraud Shield Triggered</h4>
+                                        <h4 className="font-bold text-sm mb-1 text-red-500">Fraud Detected</h4>
                                         <p className="text-xs text-[#8A8A9E] leading-relaxed">
-                                            This transaction was flagged due to: {fraudResult.risk_factors?.join(', ')}.
+                                            This transaction was flagged by our AI fraud detection system. Your money is safe.
                                         </p>
                                     </div>
                                 </div>
                             </div>
                         </motion.div>
 
-                        <div className="space-y-4 pt-4">
-                            <button onClick={() => navigate('/')} className="w-full bg-[#12101B] border border-[#232332] hover:bg-[#1A1825] text-white font-bold rounded-2xl py-4 transition-colors">
-                                Back to Home
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // Success Screen matching new UI
-        return (
-            <div className="min-h-screen bg-[#05030A] flex flex-col items-center pt-8 p-6 text-white pb-24 relative overflow-hidden">
-                {/* Glow behind the success check */}
-                <div className="absolute top-[15%] left-1/2 -translate-x-1/2 w-[60%] h-[200px] bg-green-500/10 blur-[80px] rounded-full pointer-events-none"></div>
-
-                <div className="w-full max-w-md flex flex-col items-center z-10">
-                    <div className="w-full flex justify-between items-center mb-10">
-                        <button onClick={() => navigate('/')} className="w-10 h-10 rounded-full bg-[#12101B] border border-[#1C1C26] flex items-center justify-center hover:bg-[#1A1825] transition-colors">
-                            <ArrowLeft className="w-5 h-5 text-white" />
-                        </button>
-                        <h2 className="text-lg font-bold">SecureUPI</h2>
-                        <div className="w-10"></div> {/* Spacer for centering */}
-                    </div>
-
-                    <motion.div
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="mb-8"
-                    >
-                        <div className="w-24 h-24 rounded-full bg-[#0D1A15] border border-green-500/20 flex items-center justify-center relative">
-                            <div className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(34,197,94,0.4)]">
-                                <CheckCircle2 className="w-8 h-8 text-[#0D1A15]" fill="currentColor" />
-                            </div>
-                        </div>
-                    </motion.div>
-
-                    <div className="text-center mb-10">
-                        <h1 className="text-3xl font-extrabold mb-2 tracking-tight">Success!</h1>
-                        <p className="text-[#8A8A9E] text-base">Your transaction was successful</p>
-                    </div>
-
-                    <motion.div
-                        initial={{ y: 20, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: 0.1 }}
-                        className="w-full bg-[#0A0A10] border border-[#1C1C26] rounded-3xl p-6 mb-8 shadow-xl"
-                    >
-                        <div className="space-y-5 text-sm">
-                            <div className="flex justify-between items-center border-b border-[#1C1C26] pb-5">
-                                <span className="text-[#8A8A9E] font-medium">Transaction ID</span>
-                                <span className="font-mono text-white text-[13px]">{fraudResult.transaction_id || '#SUPI-98234-X'}</span>
-                            </div>
-                            <div className="flex justify-between items-center border-b border-[#1C1C26] pb-5">
-                                <span className="text-[#8A8A9E] font-medium">Date</span>
-                                <span className="text-white font-medium">Oct 24, 2023, 10:45 AM</span>
-                            </div>
-                            <div className="flex justify-between items-center border-b border-[#1C1C26] pb-5">
-                                <span className="text-[#8A8A9E] font-medium">Status</span>
-                                <div className="flex items-center gap-1.5 text-green-500 font-semibold">
-                                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                                    Completed
-                                </div>
-                            </div>
-                            <div className="flex justify-between items-center pt-2">
-                                <span className="text-white font-bold text-base">Total Amount</span>
-                                <span className="font-extrabold text-[#0014FF] text-xl">${parseFloat(amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                        </div>
-                    </motion.div>
-
-                    <div className="w-full grid grid-cols-2 gap-4 mb-8">
-                        <button className="bg-[#12101B] border border-[#1C1C26] hover:bg-[#1A1825] text-white font-semibold rounded-2xl py-4 flex items-center justify-center gap-2 transition-colors">
-                            <Share2 className="w-4 h-4" /> Share
-                        </button>
-                        <button className="bg-[#12101B] border border-[#1C1C26] hover:bg-[#1A1825] text-white font-semibold rounded-2xl py-4 flex items-center justify-center gap-2 transition-colors">
-                            <Download className="w-4 h-4" /> Receipt
-                        </button>
-                    </div>
-
-                    <div className="w-full">
-                        <button onClick={() => navigate('/')} className="w-full bg-[#0014FF] hover:bg-blue-700 text-white font-bold rounded-2xl py-4 flex items-center justify-center shadow-[0_4px_20px_rgba(0,20,255,0.4)] transition-all">
+                        <button onClick={() => navigate('/')} className="w-full bg-[#12101B] border border-[#232332] hover:bg-[#1A1825] text-white font-bold rounded-2xl py-4 transition-colors">
                             Back to Home
                         </button>
                     </div>
                 </div>
-            </div>
-        );
+            );
+        }
     }
 
     // ----------------------------------------------------------------------
@@ -318,25 +455,66 @@ export function SendMoney() {
                 <div className="bg-[#12101B] border border-[#232332] rounded-3xl p-5 shadow-lg">
                     <div className="flex justify-between items-center mb-3">
                         <span className="text-[10px] font-bold text-secure-textMuted tracking-widest uppercase">To Recipient</span>
-                        <button className="text-[11px] font-bold text-secure-blue flex items-center gap-1 hover:text-blue-400">
-                            <UserIcon className="w-3 h-3" /> View Contacts
-                        </button>
                     </div>
-                    <div className="relative mb-4">
+                    <div className="relative mb-3">
                         <input
                             type="text"
                             value={recipient}
                             onChange={(e) => setRecipient(e.target.value)}
-                            className="w-full bg-[#1A1825] text-white font-medium rounded-2xl py-4 px-4 pr-12 focus:outline-none focus:ring-1 focus:ring-secure-blue"
-                            placeholder="UPI ID or Mobile Number"
+                            className={`w-full bg-[#1A1825] text-white font-medium rounded-2xl py-4 px-4 pr-12 focus:outline-none focus:ring-2 transition-all ${
+                                recipientVerified 
+                                    ? 'border-2 border-green-500 focus:ring-green-500/50' 
+                                    : upiError 
+                                        ? 'border-2 border-red-500 focus:ring-red-500/50'
+                                        : 'border-2 border-transparent focus:ring-secure-blue'
+                            }`}
+                            placeholder="Enter UPI ID (e.g., name@secureupi)"
                         />
-                        <div className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 bg-secure-blue rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(26,33,255,0.5)]">
-                            <CheckCircleIcon className="w-3 h-3 text-white" />
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                            {validatingUPI ? (
+                                <Loader2 className="w-5 h-5 text-secure-blue animate-spin" />
+                            ) : recipientVerified ? (
+                                <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                                    <CheckCircle className="w-3 h-3 text-white" />
+                                </div>
+                            ) : upiError ? (
+                                <XCircle className="w-5 h-5 text-red-500" />
+                            ) : null}
                         </div>
                     </div>
-                    <div className="bg-[#0D1A15] border border-[#14261E] rounded-xl py-2.5 px-3 flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-[#219653]" />
-                        <span className="text-xs font-semibold text-[#219653]">Verified & Trusted Recipient</span>
+                    
+                    {/* Recipient validation status */}
+                    {recipientVerified && recipientName && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-green-500/10 border border-green-500/20 rounded-xl py-2.5 px-3 flex items-center gap-2 mb-3"
+                        >
+                            <User className="w-4 h-4 text-green-500" />
+                            <span className="text-xs font-semibold text-green-400">{recipientName}</span>
+                        </motion.div>
+                    )}
+                    
+                    {upiError && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-red-500/10 border border-red-500/20 rounded-xl py-2.5 px-3 flex items-center gap-2 mb-3"
+                        >
+                            <AlertTriangle className="w-4 h-4 text-red-500" />
+                            <span className="text-xs font-semibold text-red-400">{upiError}</span>
+                        </motion.div>
+                    )}
+                    
+                    <div className={`rounded-xl py-2.5 px-3 flex items-center gap-2 ${
+                        recipientVerified 
+                            ? 'bg-green-500/10 border border-green-500/20' 
+                            : 'bg-[#0D1A15] border border-[#14261E]'
+                    }`}>
+                        <CheckCircle2 className={`w-4 h-4 ${recipientVerified ? 'text-green-500' : 'text-[#8A8A9E]'}`} />
+                        <span className={`text-xs font-semibold ${recipientVerified ? 'text-green-400' : 'text-[#8A8A9E]'}`}>
+                            {recipientVerified ? 'Verified Recipient' : 'Enter recipient UPI ID'}
+                        </span>
                     </div>
                 </div>
 
@@ -382,10 +560,11 @@ export function SendMoney() {
             <div className="mt-8 mb-4">
                 <button
                     onClick={initiatePayment}
-                    disabled={!amount || parseInt(amount) === 0}
-                    className="w-full bg-secure-blue hover:bg-secure-blueHover disabled:opacity-50 text-white font-bold rounded-2xl py-4 flex items-center justify-center shadow-[0_4px_20px_rgba(26,33,255,0.4)] transition-all active:scale-[0.98] gap-2"
+                    disabled={!amount || parseInt(amount) === 0 || !recipientVerified}
+                    className="w-full bg-secure-blue hover:bg-secure-blueHover disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-2xl py-4 flex items-center justify-center shadow-[0_4px_20px_rgba(26,33,255,0.4)] transition-all active:scale-[0.98] gap-2"
                 >
-                    <Lock className="w-4 h-4" /> Pay Securely
+                    <Lock className="w-4 h-4" />
+                    {!recipientVerified ? 'Enter Valid UPI ID' : !amount ? 'Enter Amount' : 'Pay Securely'}
                 </button>
                 <div className="text-center mt-4 text-[9px] font-bold text-[#505068] tracking-widest uppercase">
                     Secured by 256-Bit Encryption

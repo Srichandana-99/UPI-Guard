@@ -19,15 +19,17 @@ export function Dashboard() {
     }
 
     const handleCopy = () => {
-        navigator.clipboard.writeText(upiId)
-        triggerToast("UPI ID Copied")
+        if (upiId) {
+            navigator.clipboard.writeText(upiId)
+            triggerToast("UPI ID Copied")
+        }
     }
 
     // Use data from backend session if available
-    const balance = user?.balance ? user.balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "82,450.00"
-    let initial = user?.name ? user.name.charAt(0).toUpperCase() : "A"
-    let fullName = user?.name || "Alex Rivers"
-    let upiId = user?.upi_id || "secure@upi"
+    const balance = user?.balance ? user.balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
+    let initial = user?.name ? user.name.charAt(0).toUpperCase() : "U"
+    let fullName = user?.name || null
+    let upiId = user?.upi_id || null
 
     // Fetch transactions from our new API
     useEffect(() => {
@@ -64,7 +66,7 @@ export function Dashboard() {
                     </div>
                     <div>
                         <p className="text-xs text-[#8A8A9E] font-medium tracking-wide">Welcome back,</p>
-                        <h1 className="text-xl font-bold tracking-tight">{fullName}</h1>
+                        <h1 className="text-xl font-bold tracking-tight">{fullName || 'User'}</h1>
                     </div>
                 </div>
                 <button onClick={() => triggerToast("No new notifications")} className="w-10 h-10 rounded-full bg-[#12101B] flex items-center justify-center relative hover:bg-[#1C1C26] transition-colors">
@@ -82,7 +84,7 @@ export function Dashboard() {
                 <div className="flex justify-between items-start mb-6">
                     <div>
                         <h3 className="text-[10px] font-bold text-[#8A8A9E] tracking-widest uppercase mb-1">Available Balance</h3>
-                        <h2 className="text-4xl font-extrabold tracking-tight">₹{balance}</h2>
+                        <h2 className="text-4xl font-extrabold tracking-tight">{balance ? `₹${balance}` : 'Loading...'}</h2>
                     </div>
                     <div className="bg-[#0D1A15] border border-[#14261E] rounded-lg py-1.5 px-3 flex items-center gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5 text-[#00D06C]" />
@@ -94,8 +96,8 @@ export function Dashboard() {
                     <div>
                         <h3 className="text-[10px] font-bold text-[#8A8A9E] tracking-widest uppercase mb-1.5">UPI ID</h3>
                         <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium">{upiId}</p>
-                            <button onClick={handleCopy} className="text-[#8A8A9E] hover:text-white"><Copy className="w-4 h-4" /></button>
+                            <p className="text-sm font-medium">{upiId || 'Loading...'}</p>
+                            {upiId && <button onClick={handleCopy} className="text-[#8A8A9E] hover:text-white"><Copy className="w-4 h-4" /></button>}
                         </div>
                     </div>
                 </div>

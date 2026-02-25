@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { MainLayout } from './layout/MainLayout'
@@ -20,6 +20,56 @@ import { Dashboard as AdminDashboard } from './pages/admin/Dashboard'
 import { Users as AdminUsers } from './pages/admin/Users'
 import { Transactions as AdminTransactions } from './pages/admin/Transactions'
 import { FraudMonitor as AdminFraudMonitor } from './pages/admin/FraudMonitor'
+
+// Permission Request Hook
+const usePermissions = () => {
+    const { user, logUserLocation } = useAuth()
+    
+    useEffect(() => {
+        const requestPermissions = async () => {
+            // Request notification permission
+            if ('Notification' in window) {
+                if (Notification.permission === 'default') {
+                    await Notification.requestPermission()
+                }
+            }
+
+            // Request camera permission (for QR scanning)
+            if ('mediaDevices' in navigator) {
+                try {
+                    await navigator.permissions.query({ name: 'camera' })
+                } catch (err) {
+                    console.log('Camera permission API not supported')
+                }
+            }
+
+            // Request biometric permission (if available)
+            if ('credentials' in navigator) {
+                try {
+                    await navigator.credentials.create({
+                        publicKey: {
+                            challenge: new Uint8Array(32),
+                            rp: { name: 'SecureUPI' },
+                            user: { id: new Uint8Array(16), name: 'test' },
+                            pubKeyCredParams: [{ alg: -7, type: 'public-key' }]
+                        }
+                    })
+                } catch (err) {
+                    // Biometric not supported or denied
+                }
+            }
+        }
+
+        // Log location when user is available
+        if (user?.email) {
+            logUserLocation(user.email, 'app_open')
+        }
+
+        // Request permissions after a small delay to not block initial load
+        const timer = setTimeout(requestPermissions, 2000)
+        return () => clearTimeout(timer)
+    }, [user?.email, logUserLocation])
+}
 // Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
     const { user, loading } = useAuth()
@@ -72,10 +122,17 @@ const AppRoutes = () => {
 }
 
 function App() {
+    const PermissionProvider = ({ children }) => {
+        usePermissions()
+        return children
+    }
+
     return (
         <BrowserRouter>
             <AuthProvider>
-                <AppRoutes />
+                <PermissionProvider>
+                    <AppRoutes />
+                </PermissionProvider>
             </AuthProvider>
         </BrowserRouter>
     )

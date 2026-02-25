@@ -1,25 +1,51 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { Shield, Fingerprint, Eye, EyeOff, User, Lock, CheckCircle2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { Shield, Fingerprint, User, CheckCircle2, Zap } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 export function Login() {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
-    const { login, loading } = useAuth();
-    const navigate = useNavigate();
+    const [email, setEmail] = useState('')
+    const [error, setError] = useState(null)
+    const { requestOtp, verifyOtp, loading, logUserLocation } = useAuth()
+    const navigate = useNavigate()
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
-        const loggedInUser = await login(email, password);
-        if (loggedInUser?.role === 'admin') {
-            navigate('/admin');
-        } else {
-            navigate('/');
+        e.preventDefault()
+        setError(null)
+        try {
+            // Log location for login attempt
+            logUserLocation(email, 'login_attempt')
+            await requestOtp(email)
+            navigate('/verify-otp', { state: { email, intent: 'login' } })
+        } catch (err) {
+            setError(err?.message || 'Failed to send OTP')
         }
-    };
+    }
+
+    // Temporary test login for UI testing
+    const handleTestLogin = async () => {
+        const testEmail = 'test@demo.com'
+        const testUser = {
+            id: 'test-user-123',
+            full_name: 'Test User',
+            email: testEmail,
+            upi_id: 'test@secureupi',
+            qr_code: 'upi://pay?pa=test@secureupi&pn=Test%20User&mc=0000&tid=TEST123',
+            balance: 50000.00,
+            role: 'user',
+            verified: true
+        }
+        
+        // Log location for test login
+        logUserLocation(testEmail, 'test_login')
+        
+        // Store test user in localStorage (same as AuthContext)
+        localStorage.setItem('user', JSON.stringify(testUser))
+        
+        // Reload to trigger auth context update
+        window.location.href = '/'
+    }
 
     return (
         <div className="min-h-screen bg-secure-bg flex flex-col items-center justify-center p-6 text-secure-text">
@@ -47,59 +73,35 @@ export function Login() {
                 >
                     <div className="mb-8">
                         <h2 className="text-[2rem] leading-tight font-extrabold mb-2 tracking-tight">Welcome Back</h2>
-                        <p className="text-secure-textMuted text-sm">Securely log in to your UPI account</p>
+                        <p className="text-secure-textMuted text-sm">We’ll send a one-time password (OTP) to your email.</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         {/* Username Input */}
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-secure-textMuted tracking-widest uppercase ml-1">
-                                Username/Mobile
+                                Email Address
                             </label>
                             <div className="relative">
                                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-secure-textMuted">
                                     <User className="w-4 h-4" />
                                 </div>
                                 <input
-                                    type="text"
+                                    type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     className="w-full bg-[#12101B] border border-[#232332] text-white rounded-2xl py-3.5 pl-11 pr-4 focus:outline-none focus:border-secure-blue focus:ring-1 focus:ring-secure-blue text-sm transition-all placeholder:text-secure-textMuted/50"
-                                    placeholder="Enter mobile or username"
+                                    placeholder="name@example.com"
                                     required
                                 />
                             </div>
                         </div>
 
-                        {/* Password Input */}
-                        <div className="space-y-1.5 pt-1">
-                            <div className="flex justify-between items-center ml-1">
-                                <label className="text-[10px] font-bold text-secure-textMuted tracking-widest uppercase">
-                                    Password
-                                </label>
-                                <Link to="/reset-pin" className="text-[11px] text-secure-blue font-semibold hover:text-blue-400">Forgot?</Link>
+                        {error && (
+                            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold rounded-2xl p-3">
+                                {error}
                             </div>
-                            <div className="relative">
-                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-secure-textMuted">
-                                    <Lock className="w-4 h-4" />
-                                </div>
-                                <input
-                                    type={showPassword ? "text" : "password"}
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full bg-[#12101B] border border-[#232332] text-white rounded-2xl py-3.5 pl-11 pr-11 focus:outline-none focus:border-secure-blue focus:ring-1 focus:ring-secure-blue text-sm transition-all placeholder:text-secure-textMuted/50 tracking-widest"
-                                    placeholder="••••••••"
-                                    required
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-secure-textMuted hover:text-white"
-                                >
-                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </button>
-                            </div>
-                        </div>
+                        )}
 
                         <div className="flex gap-3 pt-4">
                             <button
@@ -113,13 +115,24 @@ export function Login() {
                                 disabled={loading}
                                 className="flex-1 bg-secure-blue hover:bg-secure-blueHover text-white font-semibold rounded-2xl py-3.5 flex items-center justify-center shadow-[0_4px_20px_rgba(26,33,255,0.3)] transition-all active:scale-[0.98]"
                             >
-                                <span>Login</span>
+                                <span>{loading ? 'Sending OTP...' : 'Send OTP'}</span>
                                 <span className="ml-2 font-bold inline-block transform translate-y-[1px]">→</span>
                             </button>
                         </div>
                     </form>
 
-                    <div className="mt-8 flex items-center gap-4">
+                    <div className="mt-4">
+                        <button
+                            onClick={handleTestLogin}
+                            className="w-full bg-[#1C1C26] border border-dashed border-secure-blue/50 hover:bg-secure-blue/10 text-secure-blue font-semibold rounded-2xl py-3 transition-colors text-sm flex items-center justify-center gap-2"
+                        >
+                            <Zap className="w-4 h-4" />
+                            Test Login (Skip OTP)
+                        </button>
+                        <p className="text-[10px] text-secure-textMuted text-center mt-2">For UI testing only</p>
+                    </div>
+
+                    <div className="mt-6 flex items-center gap-4">
                         <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-[#2A2A38]"></div>
                         <span className="text-[10px] font-bold text-secure-textMuted uppercase tracking-widest">New to UPI?</span>
                         <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-[#2A2A38]"></div>

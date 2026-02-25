@@ -10,17 +10,17 @@ export function MyQR() {
     const { user } = useAuth();
     const [copied, setCopied] = React.useState(false);
 
-    // Fallback ID if none is present
-    const upiId = user?.upi_id || "secure@upi";
-    const fullName = user?.name || "SecureUser";
-
-    // Formatting the QR code payload to follow typical UPI URI format: upi://pay?pa=...&pn=...
-    const qrPayload = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(fullName)}`;
+    // Use user's unique QR code from backend
+    const upiId = user?.upi_id || "Loading...";
+    const fullName = user?.full_name || user?.name || "User";
+    const qrPayload = user?.qr_code || `upi://pay?pa=${upiId}&pn=${encodeURIComponent(fullName)}`;
 
     const copyToClipboard = () => {
-        navigator.clipboard.writeText(upiId);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        if (upiId && upiId !== "Loading...") {
+            navigator.clipboard.writeText(upiId);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
     };
 
     return (

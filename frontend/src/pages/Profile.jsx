@@ -1,15 +1,36 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, User, Landmark, ShieldCheck, Fingerprint, HelpCircle, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { User, Landmark, ShieldCheck, Fingerprint, HelpCircle, ChevronRight, CheckCircle2, Camera, Bell } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
 export function Profile() {
-    const { user, logout } = useAuth()
+    const { user, logout, checkBiometricSupport, checkCameraPermission } = useAuth()
     const navigate = useNavigate()
     const [fraudShieldActive, setFraudShieldActive] = useState(true)
     const [biometricActive, setBiometricActive] = useState(false)
+    const [cameraPermission, setCameraPermission] = useState('prompt')
+    const [notificationPermission, setNotificationPermission] = useState('default')
     const [toastMessage, setToastMessage] = useState(null)
+
+    useEffect(() => {
+        // Check permissions on mount
+        const checkPermissions = async () => {
+            // Check biometric support
+            const biometricSupported = await checkBiometricSupport()
+            setBiometricActive(biometricSupported)
+            
+            // Check camera permission
+            const camPerm = await checkCameraPermission()
+            setCameraPermission(camPerm)
+            
+            // Check notification permission
+            if ('Notification' in window) {
+                setNotificationPermission(Notification.permission)
+            }
+        }
+        checkPermissions()
+    }, [checkBiometricSupport, checkCameraPermission])
 
     const triggerToast = (msg) => {
         setToastMessage(msg)
@@ -29,11 +50,8 @@ export function Profile() {
     return (
         <div className="min-h-screen bg-[#05030A] text-white p-6 pb-24">
             {/* Header */}
-            <div className="flex justify-between items-center mb-10 pt-4">
+            <div className="flex items-center mb-10 pt-4">
                 <h1 className="text-2xl font-bold tracking-tight">Profile</h1>
-                <button onClick={() => triggerToast('Settings')} className="w-10 h-10 bg-[#12101B] border border-[#1C1C26] rounded-full flex items-center justify-center hover:bg-[#1A1825] transition-colors">
-                    <Settings className="w-5 h-5 text-[#8A8A9E]" />
-                </button>
             </div>
 
             {/* Profile Info & Balance */}
@@ -94,20 +112,52 @@ export function Profile() {
                             <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${fraudShieldActive ? 'right-1' : 'left-1'}`}></div>
                         </div>
                     </div>
-                    <div onClick={() => setBiometricActive(!biometricActive)} className="flex items-center justify-between p-4 cursor-pointer hover:bg-[#1A1825] transition-colors">
+                    <div className="flex items-center justify-between p-4 border-b border-[#1C1C26]">
                         <div className="flex items-center gap-4">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${biometricActive ? 'bg-[#0014FF]/10' : 'bg-[#1A1825]'}`}>
                                 <Fingerprint className={`w-5 h-5 transition-colors ${biometricActive ? 'text-secure-blue' : 'text-[#8A8A9E]'}`} />
                             </div>
                             <div>
-                                <h4 className="font-semibold text-sm">Biometric Lock</h4>
+                                <h4 className="font-semibold text-sm">Biometric Authentication</h4>
                                 <p className={`text-[9px] font-bold tracking-widest uppercase mt-0.5 transition-colors ${biometricActive ? 'text-secure-blue' : 'text-[#8A8A9E]'}`}>
-                                    {biometricActive ? 'Enabled' : 'Disabled'}
+                                    {biometricActive ? 'Supported' : 'Not Available'}
                                 </p>
                             </div>
                         </div>
                         <div className={`w-12 h-6 rounded-full relative transition-colors ${biometricActive ? 'bg-secure-blue' : 'bg-[#232332]'}`}>
                             <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${biometricActive ? 'right-1' : 'left-1'}`}></div>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between p-4 border-b border-[#1C1C26]">
+                        <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${cameraPermission === 'granted' ? 'bg-[#0014FF]/10' : 'bg-[#1A1825]'}`}>
+                                <Camera className={`w-5 h-5 transition-colors ${cameraPermission === 'granted' ? 'text-secure-blue' : 'text-[#8A8A9E]'}`} />
+                            </div>
+                            <div>
+                                <h4 className="font-semibold text-sm">Camera Access</h4>
+                                <p className={`text-[9px] font-bold tracking-widest uppercase mt-0.5 transition-colors ${cameraPermission === 'granted' ? 'text-secure-blue' : 'text-[#8A8A9E]'}`}>
+                                    {cameraPermission === 'granted' ? 'Allowed' : cameraPermission === 'denied' ? 'Blocked' : 'Not Requested'}
+                                </p>
+                            </div>
+                        </div>
+                        <div className={`w-12 h-6 rounded-full relative transition-colors ${cameraPermission === 'granted' ? 'bg-secure-blue' : 'bg-[#232332]'}`}>
+                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${cameraPermission === 'granted' ? 'right-1' : 'left-1'}`}></div>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between p-4">
+                        <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${notificationPermission === 'granted' ? 'bg-[#0014FF]/10' : 'bg-[#1A1825]'}`}>
+                                <Bell className={`w-5 h-5 transition-colors ${notificationPermission === 'granted' ? 'text-secure-blue' : 'text-[#8A8A9E]'}`} />
+                            </div>
+                            <div>
+                                <h4 className="font-semibold text-sm">Push Notifications</h4>
+                                <p className={`text-[9px] font-bold tracking-widest uppercase mt-0.5 transition-colors ${notificationPermission === 'granted' ? 'text-secure-blue' : 'text-[#8A8A9E]'}`}>
+                                    {notificationPermission === 'granted' ? 'Enabled' : notificationPermission === 'denied' ? 'Blocked' : 'Not Requested'}
+                                </p>
+                            </div>
+                        </div>
+                        <div className={`w-12 h-6 rounded-full relative transition-colors ${notificationPermission === 'granted' ? 'bg-secure-blue' : 'bg-[#232332]'}`}>
+                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notificationPermission === 'granted' ? 'right-1' : 'left-1'}`}></div>
                         </div>
                     </div>
                 </div>
