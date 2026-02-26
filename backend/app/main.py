@@ -7,8 +7,8 @@ from app.db.models import Base
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
-# Initialize DB tables
-Base.metadata.create_all(bind=engine)
+# Don't create tables at import time - let them be created when needed
+# Base.metadata.create_all(bind=engine)
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,6 +33,15 @@ app.include_router(auth_db.router, prefix="/api/v1/auth", tags=["Authentication"
 app.include_router(transaction_db.router, prefix="/api/v1/transaction", tags=["Transactions"])
 app.include_router(admin_db.router, prefix="/api/v1/admin", tags=["Admin Panel"])
 app.include_router(location.router, prefix="/api/v1", tags=["Location"])
+
+@app.on_event("startup")
+async def startup_event():
+    """Create database tables on startup"""
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("✅ Database tables created successfully")
+    except Exception as e:
+        print(f"❌ Error creating database tables: {e}")
 
 @app.get("/health")
 def health_check():
