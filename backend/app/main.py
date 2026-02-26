@@ -67,6 +67,14 @@ async def startup_event():
 def health_check():
     return {"status": "ok", "project": settings.PROJECT_NAME}
 
+@app.get("/test")
+def test_endpoint():
+    return {"message": "Test endpoint working", "cors": "enabled"}
+
+@app.post("/api/v1/test")
+def test_post_endpoint():
+    return {"message": "POST test endpoint working", "cors": "enabled"}
+
 # Print all routes for debugging
 if __name__ == "__main__":
     import uvicorn
