@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173"
     # Comma-separated list of admin emails, e.g. "admin@company.com,secops@company.com"
     ADMIN_EMAILS: str = ""
+    # Gmail SMTP credentials for sending OTP emails
+    SENDER_EMAIL: str = ""
+    SENDER_PASSWORD: str = ""
 
     class Config:
         env_file = ".env"

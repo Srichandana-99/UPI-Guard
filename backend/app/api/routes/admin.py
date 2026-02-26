@@ -67,9 +67,9 @@ async def get_all_transactions():
                 "avatar": sender_name[0].upper() if sender_name else "U"
             },
             "receiver": {
-                "name": txn.get("receiver_upi_id").split("@")[0].title(),
-                "upi": txn.get("receiver_upi_id"),
-                "avatar": txn.get("receiver_upi_id")[0].upper()
+                "name": (txn.get("receiver_upi_id") or "unknown@upi").split("@")[0].title(),
+                "upi": txn.get("receiver_upi_id") or "unknown@upi",
+                "avatar": (txn.get("receiver_upi_id") or "U")[0].upper()
             },
             "amount": amount,
             "date": txn.get("date"),

@@ -12,4 +12,10 @@ services:
         value: admin@upiguard.com,security@upiguard.com
       - key: ENVIRONMENT
         value: production
+      - key: SENDER_EMAIL
+        sync: false
+      - key: SENDER_PASSWORD
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
     healthCheckPath: /health

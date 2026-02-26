@@ -5,14 +5,15 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional
 import os
+from app.core.config import settings
 
 class EmailService:
     def __init__(self):
         # Using Gmail SMTP (free)
         self.smtp_server = "smtp.gmail.com"
         self.smtp_port = 587
-        self.sender_email = os.getenv("SENDER_EMAIL", "upiguard.demo@gmail.com")
-        self.sender_password = os.getenv("SENDER_PASSWORD", "your-app-password")
+        self.sender_email = settings.SENDER_EMAIL or os.getenv("SENDER_EMAIL", "")
+        self.sender_password = settings.SENDER_PASSWORD or os.getenv("SENDER_PASSWORD", "")
         
     def generate_otp(self, length: int = 6) -> str:
         """Generate random OTP"""

@@ -64,13 +64,22 @@ export function VerifyOTP() {
     const handleResend = async () => {
         if (!canResend || resending) return;
         setResending(true);
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setResending(false);
-        setCanResend(false);
-        setResendCountdown(30);
-        setOtp(['', '', '', '', '', '']);
-        setError(false);
-        inputRefs.current[0]?.focus();
+        try {
+            await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+        } catch (err) {
+            console.error('Resend OTP failed:', err);
+        } finally {
+            setResending(false);
+            setCanResend(false);
+            setResendCountdown(30);
+            setOtp(['', '', '', '', '', '']);
+            setError(false);
+            inputRefs.current[0]?.focus();
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -88,10 +97,13 @@ export function VerifyOTP() {
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.detail || 'Verification failed');
+            if (!data.user) throw new Error('No user returned');
 
+            // Save user and redirect to dashboard
+            localStorage.setItem('user', JSON.stringify(data.user));
             setSuccess(true);
             setLoading(false);
-            setTimeout(() => navigate('/login'), 2500);
+            setTimeout(() => navigate('/'), 2500);
         } catch (error) {
             setLoading(false);
             setError(true);
@@ -104,8 +116,8 @@ export function VerifyOTP() {
 
     const checkmarkVariants = {
         hidden: { scale: 0, rotate: -180 },
-        visible: { 
-            scale: 1, 
+        visible: {
+            scale: 1,
             rotate: 0,
             transition: { type: "spring", stiffness: 200, damping: 15, duration: 0.6 }
         }
@@ -170,7 +182,7 @@ export function VerifyOTP() {
                     transition={{ duration: 0.5 }}
                     className="flex flex-col items-center"
                 >
-                    <motion.div 
+                    <motion.div
                         className="w-12 h-12 bg-secure-blue rounded-full mb-3 flex items-center justify-center shadow-[0_0_20px_rgba(26,33,255,0.4)]"
                         animate={error ? { x: [0, -5, 5, -5, 5, 0] } : {}}
                         transition={{ duration: 0.4 }}
@@ -209,7 +221,7 @@ export function VerifyOTP() {
 
                     <form onSubmit={handleSubmit} className="space-y-8">
 
-                        <motion.div 
+                        <motion.div
                             className="flex justify-center gap-2"
                             variants={containerVariants}
                             animate={error ? "shake" : ""}
@@ -223,9 +235,8 @@ export function VerifyOTP() {
                                 >
                                     <input
                                         ref={el => inputRefs.current[index] = el}
-                                        className={`w-10 h-12 bg-[#12101B] border-2 text-white text-center rounded-xl focus:outline-none focus:border-secure-blue text-lg font-bold transition-all duration-200 ${
-                                            error ? 'border-red-500 animate-pulse' : data ? 'border-secure-blue' : 'border-[#232332]'
-                                        }`}
+                                        className={`w-10 h-12 bg-[#12101B] border-2 text-white text-center rounded-xl focus:outline-none focus:border-secure-blue text-lg font-bold transition-all duration-200 ${error ? 'border-red-500 animate-pulse' : data ? 'border-secure-blue' : 'border-[#232332]'
+                                            }`}
                                         type="text"
                                         name="otp"
                                         maxLength="1"
@@ -251,7 +262,7 @@ export function VerifyOTP() {
                                         className="flex items-center justify-center gap-2 text-secure-textMuted text-xs"
                                     >
                                         <span>Resend code in</span>
-                                        <motion.span 
+                                        <motion.span
                                             key={resendCountdown}
                                             initial={{ scale: 1.2, color: '#1A21FF' }}
                                             animate={{ scale: 1, color: '#8A8A9E' }}
