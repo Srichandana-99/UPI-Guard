@@ -31,10 +31,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include all routes with correct prefixes
 app.include_router(auth_db.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(transaction_db.router, prefix="/api/v1/transaction", tags=["Transactions"])
 app.include_router(admin_db.router, prefix="/api/v1/admin", tags=["Admin Panel"])
-app.include_router(location.router, prefix="/api/v1", tags=["Location"])
+app.include_router(location.router, prefix="/api/v1/location", tags=["Location"])
 
 @app.on_event("startup")
 async def startup_event():
@@ -48,3 +49,12 @@ async def startup_event():
 @app.get("/health")
 def health_check():
     return {"status": "ok", "project": settings.PROJECT_NAME}
+
+# Print all routes for debugging
+if __name__ == "__main__":
+    import uvicorn
+    print("🔍 Available routes:")
+    for route in app.routes:
+        if hasattr(route, 'path'):
+            print(f"  {route.methods} {route.path}")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
