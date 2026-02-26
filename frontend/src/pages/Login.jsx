@@ -12,13 +12,23 @@ export function Login() {
 
     const handleSubmit = async (e) => {
         e.preventDefault()
+        console.log('🔍 Login form submitted', { email, loading })
         setError(null)
+        
+        if (!email) {
+            setError('Please enter your email address')
+            return
+        }
+        
         try {
+            console.log('📧 Requesting OTP for:', email)
             // Log location for login attempt
             logUserLocation(email, 'login_attempt')
             await requestOtp(email)
+            console.log('✅ OTP sent successfully')
             navigate('/verify-otp', { state: { email, intent: 'login' } })
         } catch (err) {
+            console.error('❌ OTP request failed:', err)
             setError(err?.message || 'Failed to send OTP')
         }
     }
@@ -89,7 +99,8 @@ export function Login() {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="flex-1 bg-secure-blue hover:bg-secure-blueHover text-white font-semibold rounded-2xl py-3.5 flex items-center justify-center shadow-[0_4px_20px_rgba(26,33,255,0.3)] transition-all active:scale-[0.98]"
+                                onClick={() => console.log('🔍 Button clicked', { email, loading })}
+                                className="flex-1 bg-secure-blue hover:bg-secure-blueHover text-white font-semibold rounded-2xl py-3.5 flex items-center justify-center shadow-[0_4px_20px_rgba(26,33,255,0.3)] transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <span>{loading ? 'Sending OTP...' : 'Send OTP'}</span>
                                 <span className="ml-2 font-bold inline-block transform translate-y-[1px]">→</span>

@@ -32,16 +32,32 @@ export const AuthProvider = ({ children }) => {
     }, [])
 
     const requestOtp = async (email) => {
+        console.log('🔍 requestOtp called', { email, apiUrl: import.meta.env.VITE_API_URL })
         setLoading(true)
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
+            const url = `${import.meta.env.VITE_API_URL}/auth/login`
+            console.log('📡 Making request to:', url)
+            
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email })
             })
+            
+            console.log('📡 Response status:', response.status)
             const data = await response.json().catch(() => ({}))
-            if (!response.ok) throw new Error(data.detail || data.message || 'Failed to send OTP')
+            console.log('📡 Response data:', data)
+            
+            if (!response.ok) {
+                console.error('❌ Request failed:', response.status, data)
+                throw new Error(data.detail || data.message || 'Failed to send OTP')
+            }
+            
+            console.log('✅ OTP request successful')
             return true
+        } catch (error) {
+            console.error('❌ requestOtp error:', error)
+            throw error
         } finally {
             setLoading(false)
         }
