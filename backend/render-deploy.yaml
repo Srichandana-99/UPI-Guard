@@ -12,9 +12,9 @@ services:
         value: admin@upiguard.com,security@upiguard.com
       - key: ENVIRONMENT
         value: production
-      - key: SENDER_EMAIL
+      - key: SUPABASE_URL
         sync: false
-      - key: SENDER_PASSWORD
+      - key: SUPABASE_KEY
         sync: false
       - key: CORS_ORIGINS
         sync: false

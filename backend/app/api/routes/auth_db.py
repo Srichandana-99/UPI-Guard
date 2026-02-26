@@ -4,9 +4,8 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.db.crud import get_user_by_email, create_user, verify_user
 from app.core.config import settings
-from app.services.email_service import EmailService, OTPService
+from app.db.supabase import supabase_client
 from typing import Optional
-import asyncio
 
 router = APIRouter()
 
@@ -28,6 +27,8 @@ class LoginRequest(BaseModel):
 def check_db():
     if not settings.DATABASE_URL:
         raise HTTPException(status_code=500, detail="Database not configured (DATABASE_URL missing in .env)")
+    if not supabase_client:
+        raise HTTPException(status_code=500, detail="Supabase not configured (SUPABASE_URL and SUPABASE_KEY missing in .env)")
 
 @router.post("/register")
 async def register(req: RegisterRequest, db: Session = Depends(get_db)):
@@ -45,19 +46,11 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         db_user = create_user(db, user_data)
         
         # Generate OTP
-        otp = OTPService.generate_and_store_otp(req.email, "registration")
-        email_service = EmailService()
-        
-        # Send email in thread pool so we don't block the async event loop
-        loop = asyncio.get_event_loop()
-        sent = await loop.run_in_executor(
-            None, email_service.send_otp_email, req.email, otp, "registration"
-        )
-        
-        if sent:
+        try:
+            supabase_client.auth.sign_in_with_otp({"email": req.email})
             return {"success": True, "message": f"Registration successful. OTP sent to {req.email}"}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to send OTP email. Please check email configuration.")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to send OTP email. Please check email configuration: {str(e)}")
             
     except HTTPException:
         raise
@@ -68,17 +61,25 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
 async def verify_otp(req: VerifyOTPRequest, db: Session = Depends(get_db)):
     check_db()
     
-    # Verify OTP using OTP service
-    if not OTPService.verify_otp(req.email, req.otp):
-        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+    # Verify OTP using Supabase Auth
+    try:
+        session = supabase_client.auth.verify_otp({"email": req.email, "token": req.otp, "type": "email"})
+        if not session.user:
+            raise Exception("Invalid OTP Code")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid or expired OTP: {str(e)}")
     
     user = verify_user(db, req.email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    access_token = "mock-jwt-token"
+    if hasattr(session, "session") and getattr(session, "session") is not None:
+        access_token = session.session.access_token
+
     return {
         "success": True,
-        "token": "mock-jwt-token",
+        "token": access_token,
         "user": {
             "id": user.id,
             "full_name": user.full_name,
@@ -112,16 +113,8 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found. Please register first.")
 
     # Generate OTP
-    otp = OTPService.generate_and_store_otp(req.email, "login")
-    email_service = EmailService()
-    
-    # Send email in thread pool so we don't block the async event loop
-    loop = asyncio.get_event_loop()
-    sent = await loop.run_in_executor(
-        None, email_service.send_otp_email, req.email, otp, "login"
-    )
-    
-    if sent:
+    try:
+        supabase_client.auth.sign_in_with_otp({"email": req.email})
         return {"success": True, "message": f"OTP sent to {req.email}", "user": {"email": user.email}}
-    else:
-        raise HTTPException(status_code=500, detail="Failed to send OTP email. Please check email configuration.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send OTP email. Please check email configuration: {str(e)}")

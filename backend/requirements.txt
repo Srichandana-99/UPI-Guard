@@ -10,4 +10,5 @@ scikit-learn
 pandas
 joblib
 python-multipart
-
+supabase
+httpx
