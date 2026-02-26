@@ -4,30 +4,45 @@ from app.core.config import settings
 from app.api.routes import auth_db, transaction_db, admin_db, location
 from app.db.database import engine
 from app.db.models import Base
+import os
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
 # Don't create tables at import time - let them be created when needed
 # Base.metadata.create_all(bind=engine)
 
+# Get CORS origins from environment or use defaults
+cors_origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5174",
+    "http://127.0.0.1:5175",
+]
+
+# Add production origins from environment
+if settings.CORS_ORIGINS:
+    production_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",")]
+    cors_origins.extend(production_origins)
+
+# Always add wildcard origins for deployment
+cors_origins.extend([
+    "https://*.vercel.app",
+    "https://*.onrender.com",
+    "https://upi-guard-five.vercel.app",
+    "https://upi-guard-0rk8.onrender.com",
+])
+
+print(f"🌐 CORS Origins: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "http://127.0.0.1:5175",
-        "https://*.vercel.app",
-        "https://*.onrender.com",
-        "https://upi-guard-001.vercel.app",
-        "https://upi-guard-97x5.onrender.com",
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
