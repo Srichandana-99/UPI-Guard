@@ -6,6 +6,7 @@ from app.db.crud import get_user_by_email, create_user, verify_user
 from app.core.config import settings
 from app.services.email_service import EmailService, OTPService
 from typing import Optional
+import asyncio
 
 router = APIRouter()
 
@@ -43,15 +44,23 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         }
         db_user = create_user(db, user_data)
         
-        # Generate and send OTP
+        # Generate OTP
         otp = OTPService.generate_and_store_otp(req.email, "registration")
         email_service = EmailService()
         
-        if email_service.send_otp_email(req.email, otp, "registration"):
+        # Send email in thread pool so we don't block the async event loop
+        loop = asyncio.get_event_loop()
+        sent = await loop.run_in_executor(
+            None, email_service.send_otp_email, req.email, otp, "registration"
+        )
+        
+        if sent:
             return {"success": True, "message": f"Registration successful. OTP sent to {req.email}"}
         else:
             raise HTTPException(status_code=500, detail="Failed to send OTP email. Please check email configuration.")
             
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -102,11 +111,17 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found. Please register first.")
 
-    # Generate and send OTP
+    # Generate OTP
     otp = OTPService.generate_and_store_otp(req.email, "login")
     email_service = EmailService()
     
-    if email_service.send_otp_email(req.email, otp, "login"):
+    # Send email in thread pool so we don't block the async event loop
+    loop = asyncio.get_event_loop()
+    sent = await loop.run_in_executor(
+        None, email_service.send_otp_email, req.email, otp, "login"
+    )
+    
+    if sent:
         return {"success": True, "message": f"OTP sent to {req.email}", "user": {"email": user.email}}
     else:
         raise HTTPException(status_code=500, detail="Failed to send OTP email. Please check email configuration.")
