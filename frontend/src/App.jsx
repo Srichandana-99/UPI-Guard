@@ -24,7 +24,7 @@ import { FraudMonitor as AdminFraudMonitor } from './pages/admin/FraudMonitor'
 // Permission Request Hook
 const usePermissions = () => {
     const { user, logUserLocation } = useAuth()
-    
+
     useEffect(() => {
         const requestPermissions = async () => {
             // Request notification permission
@@ -121,12 +121,12 @@ const AppRoutes = () => {
     )
 }
 
-function App() {
-    const PermissionProvider = ({ children }) => {
-        usePermissions()
-        return children
-    }
+const PermissionProvider = ({ children }) => {
+    usePermissions()
+    return children
+}
 
+function App() {
     return (
         <BrowserRouter>
             <AuthProvider>

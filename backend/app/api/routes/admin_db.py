@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.db.database import get_db
 from app.db.crud import get_all_users, get_all_transactions, toggle_user_block
+from app.db.models import User, Transaction
 from app.api.routes.auth_db import check_db
 
 router = APIRouter()

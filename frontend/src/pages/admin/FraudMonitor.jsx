@@ -10,6 +10,7 @@ export function FraudMonitor() {
     const [alerts, setAlerts] = useState([]);
     const [watchlist, setWatchlist] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         const fetchFraudData = async () => {
@@ -43,6 +44,11 @@ export function FraudMonitor() {
         };
         fetchFraudData();
     }, []);
+
+    const filteredWatchlist = watchlist.filter(user =>
+        user.upi.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     return (
         <div className="p-6 text-white min-h-full pb-20 max-w-7xl mx-auto">
@@ -162,6 +168,8 @@ export function FraudMonitor() {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A8A9E]" />
                         <input
                             placeholder="Search UPI ID..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
                             className="bg-[#12101B] border border-[#1C1C26] text-white rounded-xl py-2 pl-9 pr-4 focus:outline-none focus:border-[#3388FF] transition-all text-xs w-64"
                         />
                     </div>
@@ -170,8 +178,8 @@ export function FraudMonitor() {
                 {/* Watchlist Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
-                    {!loading && watchlist.length === 0 && <div className="text-[#8A8A9E] py-4 text-center w-full col-span-full">No active watchlists found.</div>}
-                    {watchlist.map((user, i) => (
+                    {!loading && filteredWatchlist.length === 0 && <div className="text-[#8A8A9E] py-4 text-center w-full col-span-full">No active watchlists found.</div>}
+                    {filteredWatchlist.map((user, i) => (
                         <div key={i} className="bg-[#12101B] border border-[#1C1C26] border-t-2 border-t-[#FF1E46] rounded-2xl p-5 hover:bg-[#151320] transition-colors relative">
                             <button className="absolute top-4 right-4 text-[#8A8A9E] hover:text-[#3388FF] transition-colors">
                                 <Eye className="w-4 h-4" />

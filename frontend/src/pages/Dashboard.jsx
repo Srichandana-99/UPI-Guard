@@ -178,10 +178,12 @@ export function Dashboard() {
                     ) : (
                         transactions.slice(0, 5).map((txn, idx) => {
                             const isFraud = txn.status === 'Blocked';
-                            let iconObj = <UserIcon className="w-5 h-5 text-white" />;
+                            const isReceived = txn.type === 'received';
+                            const displayUpi = isReceived ? (txn.sender_upi_id || 'Unknown') : (txn.receiver_upi_id || 'Unknown');
+
                             if (isFraud) {
                                 iconObj = <AlertTriangle className="w-5 h-5 text-red-500" />;
-                            } else if (txn.receiver_upi_id.includes('merchant')) {
+                            } else if (displayUpi.includes('merchant')) {
                                 iconObj = <Landmark className="w-5 h-5 text-white" />
                             }
 
@@ -200,12 +202,12 @@ export function Dashboard() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <h4 className={`font-semibold text-sm truncate ${isFraud ? 'text-red-500' : 'text-white'}`}>
-                                            {isFraud ? 'Fraud Blocked' : txn.receiver_upi_id.split('@')[0]}
+                                            {isFraud ? 'Fraud Blocked' : displayUpi.split('@')[0]}
                                         </h4>
                                         <p className="text-xs text-[#8A8A9E] mt-0.5 truncate">{timeStr}</p>
                                     </div>
-                                    <span className={`font-bold tracking-wide ${isFraud ? 'text-red-500 line-through opacity-70' : 'text-white'}`}>
-                                        -₹{parseFloat(txn.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    <span className={`font-bold tracking-wide ${isFraud ? 'text-red-500 line-through opacity-70' : (isReceived ? 'text-[#00D06C]' : 'text-white')}`}>
+                                        {isReceived ? '+' : '-'}₹{parseFloat(txn.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
                             )
