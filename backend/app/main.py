@@ -52,7 +52,7 @@ app.add_middleware(
 app.include_router(auth_db.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(transaction_db.router, prefix="/api/v1/transaction", tags=["Transactions"])
 app.include_router(admin_db.router, prefix="/api/v1/admin", tags=["Admin Panel"])
-app.include_router(location.router, prefix="/api/v1/location", tags=["Location"])
+app.include_router(location.router, prefix="/api/v1", tags=["Location"])
 
 @app.on_event("startup")
 async def startup_event():
