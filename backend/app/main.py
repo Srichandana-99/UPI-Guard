@@ -23,6 +23,8 @@ app.add_middleware(
         "http://127.0.0.1:5175",
         "https://*.vercel.app",
         "https://*.onrender.com",
+        "https://upi-guard-001.vercel.app",
+        "https://upi-guard-97x5.onrender.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
