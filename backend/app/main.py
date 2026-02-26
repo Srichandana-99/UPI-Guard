@@ -26,6 +26,8 @@ cors_origins = [
 # Add production origins from environment
 if settings.CORS_ORIGINS:
     production_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",")]
+    # Filter out any malformed origins that start with "CORS_ORIGINS="
+    production_origins = [origin for origin in production_origins if not origin.startswith("CORS_ORIGINS=")]
     cors_origins.extend(production_origins)
 
 # Always add wildcard origins for deployment
