@@ -1,11 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, validator, EmailStr
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.db.crud import get_user_by_email, create_user, verify_user
 from app.core.config import settings
 from app.db.supabase import supabase_client
 from typing import Optional
+import re
 
 router = APIRouter()
 
@@ -15,6 +16,25 @@ class RegisterRequest(BaseModel):
     mobile: str
     dob: str
     age: int
+    
+    @validator('email')
+    def validate_email(cls, v):
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, v):
+            raise ValueError('Invalid email format')
+        return v.lower()
+    
+    @validator('mobile')
+    def validate_mobile(cls, v):
+        if not re.match(r'^\d{10}$', v):
+            raise ValueError('Mobile number must be 10 digits')
+        return v
+    
+    @validator('age')
+    def validate_age(cls, v):
+        if v < 18:
+            raise ValueError('Must be at least 18 years old')
+        return v
 
 class VerifyOTPRequest(BaseModel):
     email: str
@@ -64,7 +84,7 @@ async def verify_otp(req: VerifyOTPRequest, db: Session = Depends(get_db)):
     # Verify OTP using Supabase Auth
     try:
         session = supabase_client.auth.verify_otp({"email": req.email, "token": req.otp, "type": "email"})
-        if not session.user:
+        if not session or not session.user:
             raise Exception("Invalid OTP Code")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid or expired OTP: {str(e)}")
@@ -73,9 +93,14 @@ async def verify_otp(req: VerifyOTPRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    access_token = "mock-jwt-token"
-    if hasattr(session, "session") and getattr(session, "session") is not None:
+    # Get access token from Supabase session
+    access_token = None
+    if hasattr(session, "session") and session.session is not None:
         access_token = session.session.access_token
+    
+    # Require valid token - no fallback to mock token
+    if not access_token:
+        raise HTTPException(status_code=500, detail="Failed to generate authentication token. Please try again.")
 
     return {
         "success": True,

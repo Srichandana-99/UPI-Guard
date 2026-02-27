@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from app.core.config import settings
 from app.api.routes import auth_db, transaction_db, admin_db, location
 from app.db.database import engine
@@ -8,44 +9,37 @@ import os
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
-# Don't create tables at import time - let them be created when needed
-# Base.metadata.create_all(bind=engine)
-
 # Get CORS origins from environment or use defaults
 cors_origins = [
     "http://localhost:5173",
     "http://localhost:5174",
-    "http://localhost:5175",
     "http://localhost:3000",
-    "http://localhost:8000",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
-    "http://127.0.0.1:5175",
 ]
 
 # Add production origins from environment
 if settings.CORS_ORIGINS:
     production_origins = [origin.strip() for origin in settings.CORS_ORIGINS.split(",")]
-    # Filter out any malformed origins that start with "CORS_ORIGINS="
-    production_origins = [origin for origin in production_origins if not origin.startswith("CORS_ORIGINS=")]
+    # Filter out any malformed origins
+    production_origins = [origin for origin in production_origins if origin and not origin.startswith("CORS_ORIGINS=")]
     cors_origins.extend(production_origins)
-
-# Always add wildcard origins for deployment
-cors_origins.extend([
-    "https://*.vercel.app",
-    "https://*.onrender.com",
-    "https://upi-guard-five.vercel.app",
-    "https://upi-guard-0rk8.onrender.com",
-])
 
 print(f"🌐 CORS Origins: {cors_origins}")
 
+# Add Trusted Host middleware for security
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["localhost", "127.0.0.1", "*.vercel.app", "*.onrender.com"]
+)
+
+# Add CORS middleware with restricted headers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # Include all routes with correct prefixes

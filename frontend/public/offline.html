@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UPI Guard - Offline</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: linear-gradient(135deg, #05030A 0%, #0A0A10 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .offline-container {
+            text-align: center;
+            max-width: 400px;
+        }
+        
+        .offline-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        p {
+            color: #8A8A9E;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+        
+        .status {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid rgba(255, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .status.online {
+            background: rgba(0, 208, 108, 0.1);
+            border-color: rgba(0, 208, 108, 0.3);
+        }
+        
+        button {
+            background: #1A21FF;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            background: #1519CC;
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .tips {
+            margin-top: 40px;
+            text-align: left;
+            background: rgba(26, 33, 255, 0.05);
+            border: 1px solid rgba(26, 33, 255, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        
+        .tips h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #1A21FF;
+        }
+        
+        .tips ul {
+            list-style: none;
+            font-size: 13px;
+            color: #8A8A9E;
+        }
+        
+        .tips li {
+            margin-bottom: 8px;
+            padding-left: 20px;
+            position: relative;
+        }
+        
+        .tips li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #00D06C;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <div class="offline-icon">📡</div>
+        <h1>You're Offline</h1>
+        <p>UPI Guard requires an internet connection to function. Please check your connection and try again.</p>
+        
+        <div class="status" id="status">
+            <strong>Status:</strong> <span id="status-text">Offline</span>
+        </div>
+        
+        <button onclick="location.reload()">Try Again</button>
+        
+        <div class="tips">
+            <h3>What you can do:</h3>
+            <ul>
+                <li>Check your WiFi or mobile data connection</li>
+                <li>Try moving closer to your router</li>
+                <li>Restart your device</li>
+                <li>Check if other apps can connect to the internet</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        function updateStatus() {
+            const statusEl = document.getElementById('status');
+            const statusText = document.getElementById('status-text');
+            
+            if (navigator.onLine) {
+                statusEl.classList.add('online');
+                statusText.textContent = 'Online - Redirecting...';
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                statusEl.classList.remove('online');
+                statusText.textContent = 'Offline';
+            }
+        }
+        
+        window.addEventListener('online', updateStatus);
+        window.addEventListener('offline', updateStatus);
+        updateStatus();
+    </script>
+</body>
+</html>

@@ -6,6 +6,7 @@ from app.db.database import get_db
 from app.db.crud import get_all_users, get_all_transactions, toggle_user_block
 from app.db.models import User, Transaction
 from app.api.routes.auth_db import check_db
+from app.core.security import verify_admin_token
 
 router = APIRouter()
 
@@ -13,7 +14,10 @@ class BlockUserRequest(BaseModel):
     action: str  # "block" or "unblock"
 
 @router.get("/users")
-async def get_all_users_endpoint(db: Session = Depends(get_db)):
+async def get_all_users_endpoint(
+    db: Session = Depends(get_db),
+    admin_auth: dict = Depends(verify_admin_token)
+):
     check_db()
     users = get_all_users(db)
     users_list = []
@@ -37,7 +41,10 @@ async def get_all_users_endpoint(db: Session = Depends(get_db)):
     return {"success": True, "users": users_list}
 
 @router.get("/transactions")
-async def get_all_transactions_endpoint(db: Session = Depends(get_db)):
+async def get_all_transactions_endpoint(
+    db: Session = Depends(get_db),
+    admin_auth: dict = Depends(verify_admin_token)
+):
     check_db()
     txns = get_all_transactions(db)
     admin_txns = []
@@ -67,7 +74,10 @@ async def get_all_transactions_endpoint(db: Session = Depends(get_db)):
     return {"success": True, "transactions": admin_txns}
 
 @router.get("/fraud-alerts")
-async def get_fraud_alerts(db: Session = Depends(get_db)):
+async def get_fraud_alerts(
+    db: Session = Depends(get_db),
+    admin_auth: dict = Depends(verify_admin_token)
+):
     check_db()
     blocked_txns = db.query(Transaction).filter(Transaction.status == "Blocked").all()
     fraud_users = db.query(User).filter(User.is_fraud_risk == True).all()
@@ -102,7 +112,10 @@ async def get_fraud_alerts(db: Session = Depends(get_db)):
     }
 
 @router.get("/analytics")
-async def get_analytics(db: Session = Depends(get_db)):
+async def get_analytics(
+    db: Session = Depends(get_db),
+    admin_auth: dict = Depends(verify_admin_token)
+):
     check_db()
     total_users = db.query(User).count()
     total_txns = db.query(Transaction).count()
@@ -141,7 +154,12 @@ async def get_analytics(db: Session = Depends(get_db)):
     }
 
 @router.post("/users/{email}/block")
-async def toggle_user_block_endpoint(email: str, req: BlockUserRequest, db: Session = Depends(get_db)):
+async def toggle_user_block_endpoint(
+    email: str,
+    req: BlockUserRequest,
+    db: Session = Depends(get_db),
+    admin_auth: dict = Depends(verify_admin_token)
+):
     check_db()
     is_blocked = req.action.lower() == "block"
     user = toggle_user_block(db, email, is_blocked)

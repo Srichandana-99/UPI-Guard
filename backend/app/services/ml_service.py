@@ -1,20 +1,29 @@
 import joblib
 import pandas as pd
 import pathlib
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Load the model globally to avoid loading it per request
 BASE_DIR = pathlib.Path(__file__).parent.resolve()
 MODEL_PATH = BASE_DIR / "fraud_model.pkl"
 
+xgb_model = None
+feature_names = []
+model_load_error = None
+
 try:
     model_data = joblib.load(MODEL_PATH)
     xgb_model = model_data['model']
     feature_names = model_data['features']
-    print(f"Successfully loaded XGBoost model from {MODEL_PATH}")
+    logger.info(f"Successfully loaded XGBoost model from {MODEL_PATH}")
+except FileNotFoundError:
+    model_load_error = f"Model file not found at {MODEL_PATH}"
+    logger.error(model_load_error)
 except Exception as e:
-    print(f"Error loading model from {MODEL_PATH}: {e}")
-    xgb_model = None
-    feature_names = []
+    model_load_error = f"Error loading model from {MODEL_PATH}: {e}"
+    logger.error(model_load_error)
 
 def evaluate_fraud_risk(transaction_data: dict) -> dict:
     """
@@ -35,12 +44,20 @@ def evaluate_fraud_risk(transaction_data: dict) -> dict:
     
     fraud_prob = 0.0
     model_loaded = bool(xgb_model)
+    
+    if model_load_error:
+        logger.warning(f"Model not available: {model_load_error}. Using rule-based detection only.")
+    
     if model_loaded:
-        # Ensure columns match training order exactly (when available)
-        if feature_names:
-            df = df[feature_names]
-        probabilities = xgb_model.predict_proba(df)[0]
-        fraud_prob = float(probabilities[1])
+        try:
+            # Ensure columns match training order exactly (when available)
+            if feature_names:
+                df = df[feature_names]
+            probabilities = xgb_model.predict_proba(df)[0]
+            fraud_prob = float(probabilities[1])
+        except Exception as e:
+            logger.error(f"Error during model prediction: {e}")
+            model_loaded = False
     
     # Threshold for fraud ML probability
     is_fraud_ml = bool(model_loaded and fraud_prob > 0.5)

@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { saveUser, getUser, saveTransaction, getTransactions, initDB } from '../lib/offline-storage'
+import { initializeFirebase, subscribeToUserTransactions, subscribeToFraudAlerts, subscribeToUserBalance } from '../lib/firebase'
 
 const AuthContext = createContext({})
 
@@ -19,17 +21,112 @@ const showNotification = (title, body, icon = null) => {
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null)
     const [loading, setLoading] = useState(true)
+    const [isOnline, setIsOnline] = useState(navigator.onLine)
+    const [realtimeTransactions, setRealtimeTransactions] = useState([])
+    const [fraudAlerts, setFraudAlerts] = useState([])
+    const [unsubscribers, setUnsubscribers] = useState([])
 
+    // Initialize offline storage and Firebase
     useEffect(() => {
-        try {
-            const raw = localStorage.getItem('user')
-            if (raw) setUser(JSON.parse(raw))
-        } catch {
-            // ignore
-        } finally {
-            setLoading(false)
+        const initServices = async () => {
+            try {
+                await initDB()
+                console.log('✅ Offline storage initialized')
+                
+                // Initialize Firebase
+                initializeFirebase()
+                console.log('✅ Firebase initialized')
+            } catch (error) {
+                console.error('❌ Failed to initialize services:', error)
+            }
+        }
+
+        initServices()
+
+        // Listen for online/offline events
+        const handleOnline = () => {
+            setIsOnline(true)
+            console.log('🟢 Back online')
+            syncPendingData()
+        }
+
+        const handleOffline = () => {
+            setIsOnline(false)
+            console.log('🔴 Went offline')
+        }
+
+        window.addEventListener('online', handleOnline)
+        window.addEventListener('offline', handleOffline)
+
+        return () => {
+            window.removeEventListener('online', handleOnline)
+            window.removeEventListener('offline', handleOffline)
         }
     }, [])
+
+    // Load user from storage
+    useEffect(() => {
+        const loadUser = async () => {
+            try {
+                const raw = localStorage.getItem('user')
+                if (raw) {
+                    const userData = JSON.parse(raw)
+                    setUser(userData)
+                    // Also save to offline storage
+                    await saveUser(userData)
+                }
+            } catch (error) {
+                console.error('Failed to load user:', error)
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        loadUser()
+    }, [])
+
+    // Subscribe to real-time updates when user logs in
+    useEffect(() => {
+        if (!user?.email || !isOnline) return
+
+        const newUnsubscribers = []
+
+        // Subscribe to user transactions
+        const txnUnsubscribe = subscribeToUserTransactions(user.email, (transactions) => {
+            setRealtimeTransactions(transactions)
+            console.log('📊 Real-time transactions updated:', transactions.length)
+        })
+        if (txnUnsubscribe) newUnsubscribers.push(txnUnsubscribe)
+
+        // Subscribe to fraud alerts
+        const alertUnsubscribe = subscribeToFraudAlerts((alerts) => {
+            setFraudAlerts(alerts)
+            console.log('🚨 Fraud alerts updated:', alerts.length)
+        })
+        if (alertUnsubscribe) newUnsubscribers.push(alertUnsubscribe)
+
+        // Subscribe to balance updates
+        const balanceUnsubscribe = subscribeToUserBalance(user.email, (balance) => {
+            setUser(prev => prev ? { ...prev, balance } : null)
+            console.log('💰 Balance updated:', balance)
+        })
+        if (balanceUnsubscribe) newUnsubscribers.push(balanceUnsubscribe)
+
+        setUnsubscribers(newUnsubscribers)
+
+        return () => {
+            newUnsubscribers.forEach(unsub => {
+                if (typeof unsub === 'function') unsub()
+            })
+        }
+    }, [user?.email, isOnline])
+
+    // Sync pending data when back online
+    const syncPendingData = async () => {
+        if (!isOnline || !user) return
+        console.log('🔄 Syncing pending data...')
+        // Sync logic will be implemented based on your needs
+    }
 
     const requestOtp = async (email) => {
         console.log('🔍 requestOtp called', { email, apiUrl: import.meta.env.VITE_API_URL })
@@ -77,6 +174,8 @@ export const AuthProvider = ({ children }) => {
 
             setUser(data.user)
             localStorage.setItem('user', JSON.stringify(data.user))
+            // Save to offline storage
+            await saveUser(data.user)
             return data.user
         } finally {
             setLoading(false)
@@ -89,6 +188,11 @@ export const AuthProvider = ({ children }) => {
     const logout = async () => {
         setUser(null)
         localStorage.removeItem('user')
+        // Unsubscribe from all real-time updates
+        unsubscribers.forEach(unsub => {
+            if (typeof unsub === 'function') unsub()
+        })
+        setUnsubscribers([])
     }
 
     // Show payment received notification
@@ -179,6 +283,9 @@ export const AuthProvider = ({ children }) => {
         <AuthContext.Provider value={{ 
             user, 
             loading, 
+            isOnline,
+            realtimeTransactions,
+            fraudAlerts,
             requestOtp, 
             verifyOtp, 
             login, 

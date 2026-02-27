@@ -11,6 +11,14 @@ class Settings(BaseSettings):
     # Supabase credentials for Auth (OTP)
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
+    # Email service configuration
+    SENDER_EMAIL: str = ""
+    SENDER_PASSWORD: str = ""
+    # Firebase configuration for real-time
+    FIREBASE_DB_URL: str = ""
+    FIREBASE_API_KEY: str = ""
+    FIREBASE_AUTH_DOMAIN: str = ""
+    FIREBASE_PROJECT_ID: str = ""
 
     class Config:
         env_file = ".env"

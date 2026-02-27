@@ -181,10 +181,13 @@ export function Dashboard() {
                             const isReceived = txn.type === 'received';
                             const displayUpi = isReceived ? (txn.sender_upi_id || 'Unknown') : (txn.receiver_upi_id || 'Unknown');
 
+                            let iconObj = <Send className="w-5 h-5 text-white" />;
                             if (isFraud) {
                                 iconObj = <AlertTriangle className="w-5 h-5 text-red-500" />;
                             } else if (displayUpi.includes('merchant')) {
                                 iconObj = <Landmark className="w-5 h-5 text-white" />
+                            } else if (isReceived) {
+                                iconObj = <ArrowDownToLine className="w-5 h-5 text-[#00D06C]" />
                             }
 
                             // Format relative time if date exists
