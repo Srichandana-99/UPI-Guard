@@ -30,11 +30,15 @@ class RegisterRequest(BaseModel):
             raise ValueError('Mobile number must be 10 digits')
         return v
     
-    @validator('age')
+    @validator('age', pre=True)
     def validate_age(cls, v):
-        if v < 18:
-            raise ValueError('Must be at least 18 years old')
-        return v
+        try:
+            age_int = int(v)
+            if age_int < 18:
+                raise ValueError('Must be at least 18 years old')
+            return age_int
+        except (ValueError, TypeError):
+            raise ValueError('Age must be a valid number')
 
 class VerifyOTPRequest(BaseModel):
     email: str
