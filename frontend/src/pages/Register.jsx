@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, User, Mail, Phone, Calendar, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Shield, User, Mail, Phone, Calendar, Lock, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export function Register() {
@@ -9,7 +9,11 @@ export function Register() {
         email: '',
         mobile: '',
         dob: '',
-        age: ''
+        age: '',
+        password: '',
+        confirmPassword: '',
+        upiPin: '',
+        confirmUpiPin: ''
     });
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
@@ -34,7 +38,7 @@ export function Register() {
             }
 
             // Show success message and redirect to login
-            alert('Registration successful! Check your email for a magic link to verify and set your password.');
+            alert('Registration successful! Please check your email for a verification link. You must verify your email before logging in.');
             navigate('/login');
         } catch (error) {
             console.error('Registration error:', error);
@@ -135,13 +139,59 @@ export function Register() {
                             </div>
                         </div>
 
+                        {/* Password */}
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-secure-textMuted tracking-widest uppercase ml-1">Password</label>
+                            <div className="relative">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-secure-textMuted"><Lock className="w-4 h-4" /></div>
+                                <input
+                                    type="password" name="password" value={formData.password} onChange={handleChange} required
+                                    className="w-full bg-[#12101B] border border-[#232332] text-white rounded-2xl py-3.5 pl-11 pr-4 focus:outline-none focus:border-secure-blue text-sm placeholder:text-secure-textMuted/50"
+                                    placeholder="Min 8 chars, uppercase, number, symbol"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Confirm Password */}
+                        <div className="space-y-1">
+                            <label className="text-[9px] font-bold text-secure-textMuted tracking-widest uppercase ml-1">Confirm Password</label>
+                            <div className="relative">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-secure-textMuted"><Lock className="w-4 h-4" /></div>
+                                <input
+                                    type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required
+                                    className="w-full bg-[#12101B] border border-[#232332] text-white rounded-2xl py-3.5 pl-11 pr-4 focus:outline-none focus:border-secure-blue text-sm placeholder:text-secure-textMuted/50"
+                                    placeholder="Re-enter password"
+                                />
+                            </div>
+                        </div>
+
+                        {/* UPI PIN & Confirm UPI PIN Row */}
+                        <div className="flex gap-3">
+                            <div className="space-y-1 flex-1">
+                                <label className="text-[9px] font-bold text-secure-textMuted tracking-widest uppercase ml-1">UPI PIN</label>
+                                <input
+                                    type="password" name="upiPin" value={formData.upiPin} onChange={handleChange} required maxLength="6" pattern="\d{4,6}"
+                                    className="w-full bg-[#12101B] border border-[#232332] text-center text-white rounded-2xl py-3.5 px-2 focus:outline-none focus:border-secure-blue text-sm placeholder:text-secure-textMuted/50"
+                                    placeholder="4-6 digits"
+                                />
+                            </div>
+                            <div className="space-y-1 flex-1">
+                                <label className="text-[9px] font-bold text-secure-textMuted tracking-widest uppercase ml-1">Confirm PIN</label>
+                                <input
+                                    type="password" name="confirmUpiPin" value={formData.confirmUpiPin} onChange={handleChange} required maxLength="6" pattern="\d{4,6}"
+                                    className="w-full bg-[#12101B] border border-[#232332] text-center text-white rounded-2xl py-3.5 px-2 focus:outline-none focus:border-secure-blue text-sm placeholder:text-secure-textMuted/50"
+                                    placeholder="Re-enter"
+                                />
+                            </div>
+                        </div>
+
                         <div className="pt-4">
                             <button
                                 type="submit"
                                 disabled={loading}
                                 className="w-full bg-secure-blue hover:bg-secure-blueHover text-white font-semibold rounded-2xl py-4 flex items-center justify-center shadow-[0_4px_20px_rgba(26,33,255,0.3)] transition-all active:scale-[0.98]"
                             >
-                                <span>Continue to OTP</span>
+                                <span>Register Account</span>
                                 <ArrowRight className="ml-2 w-4 h-4" />
                             </button>
                         </div>

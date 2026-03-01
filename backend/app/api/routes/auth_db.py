@@ -21,6 +21,10 @@ class RegisterRequest(BaseModel):
     mobile: str
     dob: str
     age: int
+    password: str
+    confirmPassword: str
+    upiPin: str
+    confirmUpiPin: str
     
     @validator('email')
     def validate_email(cls, v):
@@ -31,9 +35,7 @@ class RegisterRequest(BaseModel):
     
     @validator('mobile')
     def validate_mobile(cls, v):
-        # Remove spaces, dashes, and country code
         cleaned = re.sub(r'[\s\-\+]', '', v)
-        # Remove country code if present
         if cleaned.startswith('91') and len(cleaned) == 12:
             cleaned = cleaned[2:]
         if not re.match(r'^\d{10}$', cleaned):
@@ -49,10 +51,6 @@ class RegisterRequest(BaseModel):
             return age_int
         except (ValueError, TypeError):
             raise ValueError('Age must be a valid number')
-
-class SetPasswordRequest(BaseModel):
-    email: str
-    password: str
     
     @validator('password')
     def validate_password(cls, v):
@@ -67,9 +65,31 @@ class SetPasswordRequest(BaseModel):
         if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
             raise ValueError('Password must contain at least one special character')
         return v
+    
+    @validator('confirmPassword')
+    def passwords_match(cls, v, values):
+        if 'password' in values and v != values['password']:
+            raise ValueError('Passwords do not match')
+        return v
+    
+    @validator('upiPin')
+    def validate_upi_pin(cls, v):
+        if not re.match(r'^\d{4,6}$', v):
+            raise ValueError('UPI PIN must be 4-6 digits')
+        return v
+    
+    @validator('confirmUpiPin')
+    def upi_pins_match(cls, v, values):
+        if 'upiPin' in values and v != values['upiPin']:
+            raise ValueError('UPI PINs do not match')
+        return v
 
-class VerifyMagicLinkRequest(BaseModel):
+class VerifyEmailRequest(BaseModel):
     token: str
+
+class VerifyUpiPinRequest(BaseModel):
+    email: str
+    upiPin: str
 
 class LoginRequest(BaseModel):
     email: str
@@ -79,7 +99,7 @@ def check_db():
     if not settings.DATABASE_URL:
         raise HTTPException(status_code=500, detail="Database not configured")
     if not supabase_client:
-        raise HTTPException(status_code=500, detail="Supabase not configured for magic link authentication")
+        raise HTTPException(status_code=500, detail="Supabase not configured for email verification")
 
 @router.post("/register")
 async def register(req: RegisterRequest, db: Session = Depends(get_db)):
@@ -89,63 +109,50 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="User already registered")
 
     try:
+        # Hash password and UPI PIN
+        password_hash = bcrypt.hashpw(req.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        upi_pin_hash = bcrypt.hashpw(req.upiPin.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
         user_data = {
             "full_name": req.fullName,
             "email": req.email,
             "mobile": req.mobile,
+            "password_hash": password_hash,
+            "upi_pin_hash": upi_pin_hash,
         }
         db_user = create_user(db, user_data)
         
-        # Send magic link via Supabase
+        # Send verification email via Supabase
         try:
             supabase_client.auth.sign_in_with_otp({
                 "email": req.email,
                 "options": {
-                    "email_redirect_to": f"{settings.CORS_ORIGINS.split(',')[0]}/set-password"
+                    "email_redirect_to": f"{settings.CORS_ORIGINS.split(',')[0]}/login?verified=true"
                 }
             })
-            return {"success": True, "message": f"Magic link sent to {req.email}. Check your email to verify and set password."}
+            return {"success": True, "message": f"Registration successful! Please check {req.email} to verify your account before logging in."}
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to send magic link: {str(e)}")
+            print(f"Email verification error: {e}")
+            return {"success": True, "message": f"Registration successful! Please contact support to verify your account."}
             
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/set-password")
-async def set_password(req: SetPasswordRequest, db: Session = Depends(get_db)):
-    check_db()
-    
-    user = get_user_by_email(db, req.email)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    if not user.is_verified:
-        raise HTTPException(status_code=400, detail="Please verify your email first")
-    
-    # Hash password
-    hashed = bcrypt.hashpw(req.password.encode('utf-8'), bcrypt.gensalt())
-    
-    # Update user password in database
-    user.password_hash = hashed.decode('utf-8')
-    db.commit()
-    
-    return {"success": True, "message": "Password set successfully. You can now login."}
-
-@router.post("/verify-magic-link")
-async def verify_magic_link(req: VerifyMagicLinkRequest, db: Session = Depends(get_db)):
+@router.post("/verify-email")
+async def verify_email(req: VerifyEmailRequest, db: Session = Depends(get_db)):
     check_db()
     
     try:
         # Verify token with Supabase
         session = supabase_client.auth.verify_otp({
             "token_hash": req.token,
-            "type": "magiclink"
+            "type": "email"
         })
         
         if not session or not session.user:
-            raise Exception("Invalid magic link")
+            raise Exception("Invalid verification link")
         
         # Mark user as verified
         user = verify_user(db, session.user.email)
@@ -154,24 +161,10 @@ async def verify_magic_link(req: VerifyMagicLinkRequest, db: Session = Depends(g
         
         return {
             "success": True,
-            "email": user.email,
-            "message": "Email verified! Please set your password."
+            "message": "Email verified successfully! You can now login."
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid or expired magic link: {str(e)}")
-
-@router.get("/qr/{email}")
-async def get_user_qr(email: str, db: Session = Depends(get_db)):
-    check_db()
-    user = get_user_by_email(db, email)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {
-        "success": True,
-        "upi_id": user.upi_id,
-        "qr_code": user.qr_code,
-        "name": user.full_name,
-    }
+        raise HTTPException(status_code=400, detail=f"Invalid or expired verification link: {str(e)}")
 
 @router.post("/login")
 async def login(req: LoginRequest, db: Session = Depends(get_db)):
@@ -181,15 +174,15 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="User not found. Please register first.")
     
-    if not user.is_verified:
-        raise HTTPException(status_code=400, detail="Please verify your email first")
+    if not user.verified:
+        raise HTTPException(status_code=403, detail="Please verify your email before logging in. Check your inbox for verification link.")
     
     if not user.password_hash:
-        raise HTTPException(status_code=400, detail="Please set your password first")
+        raise HTTPException(status_code=400, detail="Account setup incomplete. Please contact support.")
     
     # Verify password
     if not bcrypt.checkpw(req.password.encode('utf-8'), user.password_hash.encode('utf-8')):
-        raise HTTPException(status_code=401, detail="Invalid password")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
     
     # Generate token
     import secrets
@@ -207,4 +200,35 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
             "balance": float(user.balance),
             "role": user.role,
         }
+    }
+
+@router.post("/verify-upi-pin")
+async def verify_upi_pin(req: VerifyUpiPinRequest, db: Session = Depends(get_db)):
+    """Verify UPI PIN before transaction"""
+    check_db()
+    
+    user = get_user_by_email(db, req.email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if not user.upi_pin_hash:
+        raise HTTPException(status_code=400, detail="UPI PIN not set")
+    
+    # Verify UPI PIN
+    if not bcrypt.checkpw(req.upiPin.encode('utf-8'), user.upi_pin_hash.encode('utf-8')):
+        raise HTTPException(status_code=401, detail="Invalid UPI PIN")
+    
+    return {"success": True, "message": "UPI PIN verified"}
+
+@router.get("/qr/{email}")
+async def get_user_qr(email: str, db: Session = Depends(get_db)):
+    check_db()
+    user = get_user_by_email(db, email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "success": True,
+        "upi_id": user.upi_id,
+        "qr_code": user.qr_code,
+        "name": user.full_name,
     }

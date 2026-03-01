@@ -32,6 +32,8 @@ def create_user(db: Session, user_data: dict):
         full_name=user_data["full_name"],
         email=user_data["email"],
         mobile=user_data["mobile"],
+        password_hash=user_data.get("password_hash"),
+        upi_pin_hash=user_data.get("upi_pin_hash"),
         upi_id=upi_id,
         qr_code=qr_code,
         balance=0.00,

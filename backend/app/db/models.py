@@ -9,6 +9,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     mobile = Column(String)
     password_hash = Column(String, nullable=True)
+    upi_pin_hash = Column(String, nullable=True)
     upi_id = Column(String, unique=True, index=True)
     qr_code = Column(String, unique=True, index=True)
     balance = Column(Numeric(10, 2), default=0.00)
