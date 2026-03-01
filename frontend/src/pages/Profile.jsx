@@ -19,11 +19,11 @@ export function Profile() {
             // Check biometric support
             const biometricSupported = await checkBiometricSupport()
             setBiometricActive(biometricSupported)
-            
+
             // Check camera permission
             const camPerm = await checkCameraPermission()
             setCameraPermission(camPerm)
-            
+
             // Check notification permission
             if ('Notification' in window) {
                 setNotificationPermission(Notification.permission)
@@ -42,10 +42,10 @@ export function Profile() {
         navigate('/login')
     }
 
-    const initial = user?.name ? user.name.charAt(0).toUpperCase() : "A"
-    const fullName = user?.name || "Alex Rivera"
-    const upiId = user?.upi_id || "alex.rivera@upi"
-    const balance = user?.balance ? user.balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "12,450.00"
+    const initial = user?.full_name ? user.full_name.charAt(0).toUpperCase() : "U"
+    const fullName = user?.full_name || "User"
+    const upiId = user?.upi_id || "user@secureupi"
+    const balance = user?.balance ? user.balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"
 
     return (
         <div className="min-h-screen bg-[#05030A] text-white p-6 pb-24">
@@ -96,6 +96,24 @@ export function Profile() {
             <div className="mb-6">
                 <h3 className="text-[10px] font-bold text-[#8A8A9E] tracking-widest uppercase mb-3 ml-2">Security Settings</h3>
                 <div className="bg-[#12101B] rounded-[2rem] border border-[#1C1C26] overflow-hidden">
+                    <div onClick={() => navigate('/reset-pin')} className="flex items-center justify-between p-4 border-b border-[#1C1C26] cursor-pointer hover:bg-[#1A1825] transition-colors">
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-[#1A1825] rounded-full flex items-center justify-center shrink-0">
+                                <ShieldCheck className="w-5 h-5 text-secure-blue" />
+                            </div>
+                            <span className="font-semibold text-sm">Change UPI PIN</span>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-[#8A8A9E]" />
+                    </div>
+                    <div onClick={() => navigate('/set-password')} className="flex items-center justify-between p-4 border-b border-[#1C1C26] cursor-pointer hover:bg-[#1A1825] transition-colors">
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-[#1A1825] rounded-full flex items-center justify-center shrink-0">
+                                <Lock className="w-5 h-5 text-secure-blue" />
+                            </div>
+                            <span className="font-semibold text-sm">Change Password</span>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-[#8A8A9E]" />
+                    </div>
                     <div onClick={() => setFraudShieldActive(!fraudShieldActive)} className="flex items-center justify-between p-4 border-b border-[#1C1C26] cursor-pointer hover:bg-[#1A1825] transition-colors">
                         <div className="flex items-center gap-4">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${fraudShieldActive ? 'bg-[#0014FF]/10' : 'bg-[#1A1825]'}`}>

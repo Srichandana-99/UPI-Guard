@@ -8,12 +8,12 @@ export function PersonalInfo() {
     const { user } = useAuth()
     const navigate = useNavigate()
 
-    const initial = user?.name ? user.name.charAt(0).toUpperCase() : "A"
-    const fullName = user?.name || "Alex Rivera"
-    const email = user?.email || "alex.rivera@secureupi.com"
-    const mobile = user?.mobile || "+91 98765 43210"
-    const dob = user?.dob || "15th August 1995"
-    const age = user?.age || "28"
+    const initial = user?.full_name ? user.full_name.charAt(0).toUpperCase() : "U"
+    const fullName = user?.full_name || "User"
+    const email = user?.email || "user@example.com"
+    const mobile = user?.mobile || "+91 0000000000"
+    const dob = user?.dob || "Not set"
+    const age = user?.age || "N/A"
 
     return (
         <div className="min-h-screen bg-[#05030A] text-white p-6 pb-24 font-sans">

@@ -27,8 +27,8 @@ export function Dashboard() {
 
     // Use data from backend session if available
     const balance = user?.balance ? user.balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
-    let initial = user?.name ? user.name.charAt(0).toUpperCase() : "U"
-    let fullName = user?.name || null
+    let initial = user?.full_name ? user.full_name.charAt(0).toUpperCase() : "U"
+    let fullName = user?.full_name || null
     let upiId = user?.upi_id || null
 
     // Fetch transactions from our new API
@@ -36,7 +36,11 @@ export function Dashboard() {
         const fetchHistory = async () => {
             if (!user?.email) return;
             try {
-                const res = await fetch(`${import.meta.env.VITE_API_URL}/transaction/history/${encodeURIComponent(user.email)}`);
+                const res = await fetch(`${import.meta.env.VITE_API_URL}/transaction/history/${encodeURIComponent(user.email)}`, {
+                    headers: {
+                        'Authorization': `Bearer ${user?.token || localStorage.getItem('token')}`
+                    }
+                });
                 if (res.ok) {
                     const data = await res.json();
                     if (data.success) {
