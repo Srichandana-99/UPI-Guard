@@ -52,10 +52,24 @@ app.include_router(location.router, prefix="/api/v1", tags=["Location"])
 async def startup_event():
     """Create database tables on startup"""
     try:
+        # Try to create tables (will skip if they exist)
         Base.metadata.create_all(bind=engine)
-        print("✅ Database tables created successfully")
+        
+        # Run migration to add new columns if they don't exist
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            try:
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS upi_pin_hash VARCHAR"))
+                conn.commit()
+                print("✅ Database migration completed")
+            except Exception as e:
+                print(f"⚠️ Migration warning: {e}")
+                conn.rollback()
+        
+        print("✅ Database tables ready")
     except Exception as e:
-        print(f"❌ Error creating database tables: {e}")
+        print(f"❌ Error with database: {e}")
 
 @app.get("/health")
 def health_check():
