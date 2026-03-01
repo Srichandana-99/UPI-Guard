@@ -28,11 +28,14 @@ export function Register() {
                 body: JSON.stringify(formData)
             });
             const data = await response.json();
-            if (!response.ok) throw new Error(data.detail || 'Registration failed');
+            if (!response.ok) {
+                console.error('Full error response:', data);
+                throw new Error(data.detail || JSON.stringify(data) || 'Registration failed');
+            }
 
             navigate('/verify-otp', { state: { email: formData.email } });
         } catch (error) {
-            console.error(error);
+            console.error('Registration error:', error);
             alert(error.message);
         } finally {
             setLoading(false);
