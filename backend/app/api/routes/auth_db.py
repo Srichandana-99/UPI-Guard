@@ -26,9 +26,14 @@ class RegisterRequest(BaseModel):
     
     @validator('mobile')
     def validate_mobile(cls, v):
-        if not re.match(r'^\d{10}$', v):
+        # Remove spaces, dashes, and country code
+        cleaned = re.sub(r'[\s\-\+]', '', v)
+        # Remove country code if present
+        if cleaned.startswith('91') and len(cleaned) == 12:
+            cleaned = cleaned[2:]
+        if not re.match(r'^\d{10}$', cleaned):
             raise ValueError('Mobile number must be 10 digits')
-        return v
+        return cleaned
     
     @validator('age', pre=True)
     def validate_age(cls, v):
