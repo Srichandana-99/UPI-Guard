@@ -1,35 +1,44 @@
 import React, { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import { Shield, Fingerprint, User, CheckCircle2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Shield, Lock, User, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 export function Login() {
     const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
+    const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState(null)
-    const { requestOtp, verifyOtp, loading, logUserLocation } = useAuth()
+    const [loading, setLoading] = useState(false)
     const navigate = useNavigate()
 
     const handleSubmit = async (e) => {
         e.preventDefault()
-        console.log('🔍 Login form submitted', { email, loading })
         setError(null)
-        
-        if (!email) {
-            setError('Please enter your email address')
-            return
-        }
+        setLoading(true)
         
         try {
-            console.log('📧 Requesting OTP for:', email)
-            // Log location for login attempt
-            logUserLocation(email, 'login_attempt')
-            await requestOtp(email)
-            console.log('✅ OTP sent successfully')
-            navigate('/verify-otp', { state: { email, intent: 'login' } })
+            const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.detail || 'Login failed');
+            }
+            
+            // Store token and user data
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            
+            // Navigate to dashboard
+            navigate('/dashboard');
         } catch (err) {
-            console.error('❌ OTP request failed:', err)
-            setError(err?.message || 'Failed to send OTP')
+            console.error('Login failed:', err)
+            setError(err?.message || 'Invalid email or password')
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -49,7 +58,7 @@ export function Login() {
                     <h1 className="text-2xl font-bold tracking-tight">SecureUPI</h1>
                 </motion.div>
 
-                {/* Login Card wrapper matching UI */}
+                {/* Login Card */}
                 <motion.div
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
@@ -59,11 +68,11 @@ export function Login() {
                 >
                     <div className="mb-8">
                         <h2 className="text-[2rem] leading-tight font-extrabold mb-2 tracking-tight">Welcome Back</h2>
-                        <p className="text-secure-textMuted text-sm">We’ll send a one-time password (OTP) to your email.</p>
+                        <p className="text-secure-textMuted text-sm">Enter your credentials to access your account</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
-                        {/* Username Input */}
+                        {/* Email Input */}
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-secure-textMuted tracking-widest uppercase ml-1">
                                 Email Address
@@ -83,26 +92,46 @@ export function Login() {
                             </div>
                         </div>
 
+                        {/* Password Input */}
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-secure-textMuted tracking-widest uppercase ml-1">
+                                Password
+                            </label>
+                            <div className="relative">
+                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-secure-textMuted">
+                                    <Lock className="w-4 h-4" />
+                                </div>
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full bg-[#12101B] border border-[#232332] text-white rounded-2xl py-3.5 pl-11 pr-11 focus:outline-none focus:border-secure-blue focus:ring-1 focus:ring-secure-blue text-sm transition-all placeholder:text-secure-textMuted/50"
+                                    placeholder="Enter your password"
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-secure-textMuted hover:text-white transition-colors"
+                                >
+                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            </div>
+                        </div>
+
                         {error && (
                             <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold rounded-2xl p-3">
                                 {error}
                             </div>
                         )}
 
-                        <div className="flex gap-3 pt-4">
-                            <button
-                                type="button"
-                                className="bg-[#12101B] border border-[#232332] rounded-2xl w-[60px] flex items-center justify-center hover:bg-[#1A1825] transition-colors"
-                            >
-                                <Fingerprint className="w-6 h-6 text-secure-blue" />
-                            </button>
+                        <div className="pt-4">
                             <button
                                 type="submit"
                                 disabled={loading}
-                                onClick={() => console.log('🔍 Button clicked', { email, loading })}
-                                className="flex-1 bg-secure-blue hover:bg-secure-blueHover text-white font-semibold rounded-2xl py-3.5 flex items-center justify-center shadow-[0_4px_20px_rgba(26,33,255,0.3)] transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full bg-secure-blue hover:bg-secure-blueHover text-white font-semibold rounded-2xl py-3.5 flex items-center justify-center shadow-[0_4px_20px_rgba(26,33,255,0.3)] transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                <span>{loading ? 'Sending OTP...' : 'Send OTP'}</span>
+                                <span>{loading ? 'Logging in...' : 'Login'}</span>
                                 <span className="ml-2 font-bold inline-block transform translate-y-[1px]">→</span>
                             </button>
                         </div>
@@ -125,7 +154,7 @@ export function Login() {
                 </motion.div>
             </div>
 
-            {/* Footer Badges */}
+            {/* Footer */}
             <div className="mt-auto pt-8 pb-4 flex items-center justify-center text-[9px] font-bold tracking-widest text-[#505068] uppercase gap-2 flex-wrap text-center opacity-80">
                 <CheckCircle2 className="w-3 h-3 text-[#505068]" />
                 <span>PCI DSS Compliant • End-to-End Encrypted</span>

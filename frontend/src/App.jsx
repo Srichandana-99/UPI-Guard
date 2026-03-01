@@ -7,7 +7,7 @@ import { History } from './pages/History'
 import { SendMoney } from './pages/SendMoney'
 import { Login } from './pages/Login'
 import { Register } from './pages/Register'
-import { VerifyOTP } from './pages/VerifyOTP'
+import { SetPassword } from './pages/SetPassword'
 import { ResetPin } from './pages/ResetPin'
 import { ScanQR } from './pages/ScanQR'
 import { MyQR } from './pages/MyQR'
@@ -92,7 +92,7 @@ const AppRoutes = () => {
         <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/verify-otp" element={<VerifyOTP />} />
+            <Route path="/set-password" element={<SetPassword />} />
             <Route path="/reset-pin" element={<ResetPin />} />
 
             {/* User Routes */}

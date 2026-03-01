@@ -33,7 +33,9 @@ export function Register() {
                 throw new Error(data.detail || JSON.stringify(data) || 'Registration failed');
             }
 
-            navigate('/verify-otp', { state: { email: formData.email } });
+            // Show success message and redirect to login
+            alert('Registration successful! Check your email for a magic link to verify and set your password.');
+            navigate('/login');
         } catch (error) {
             console.error('Registration error:', error);
             alert(error.message);
