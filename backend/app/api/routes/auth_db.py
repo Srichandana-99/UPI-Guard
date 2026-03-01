@@ -174,8 +174,8 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
     if not bcrypt.checkpw(req.password.encode('utf-8'), user.password_hash.encode('utf-8')):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
-    # Generate JWT token
-    access_token = create_access_token(data={"sub": user.email})
+    # Generate token
+    access_token = secrets.token_urlsafe(32)
     
     return {
         "success": True,

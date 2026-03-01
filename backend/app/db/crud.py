@@ -27,6 +27,11 @@ def create_user(db: Session, user_data: dict):
     upi_id = user_data["email"].split("@")[0].lower() + "@secureupi"
     # Generate unique QR code: upi://pay?pa=UPI_ID&pn=NAME&mc=0000
     qr_code = f"upi://pay?pa={upi_id}&pn={user_data['full_name'].replace(' ', '%20')}&mc=0000&tid={user_id[:8]}"
+    
+    # Generate random balance between 70,000 and 150,000
+    import random
+    random_balance = random.randint(70000, 150000)
+    
     db_user = User(
         id=user_id,
         full_name=user_data["full_name"],
@@ -36,7 +41,7 @@ def create_user(db: Session, user_data: dict):
         upi_pin_hash=user_data.get("upi_pin_hash"),
         upi_id=upi_id,
         qr_code=qr_code,
-        balance=0.00,
+        balance=random_balance,
         verified=False,
         role=role,
     )

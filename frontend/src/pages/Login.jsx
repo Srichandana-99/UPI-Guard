@@ -32,8 +32,8 @@ export function Login() {
             localStorage.setItem('token', data.token);
             localStorage.setItem('user', JSON.stringify(data.user));
             
-            // Navigate to dashboard
-            navigate('/dashboard');
+            // Reload to update AuthContext
+            window.location.href = '/dashboard';
         } catch (err) {
             console.error('Login failed:', err)
             setError(err?.message || 'Invalid email or password')
