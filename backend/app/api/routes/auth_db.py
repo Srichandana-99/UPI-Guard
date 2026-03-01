@@ -122,18 +122,10 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         }
         db_user = create_user(db, user_data)
         
-        # Send verification email via Supabase
-        try:
-            supabase_client.auth.sign_in_with_otp({
-                "email": req.email,
-                "options": {
-                    "email_redirect_to": f"{settings.CORS_ORIGINS.split(',')[0]}/login?verified=true"
-                }
-            })
-            return {"success": True, "message": f"Registration successful! Please check {req.email} to verify your account before logging in."}
-        except Exception as e:
-            print(f"Email verification error: {e}")
-            return {"success": True, "message": f"Registration successful! Please contact support to verify your account."}
+        # Auto-verify user (skip email verification for now)
+        verify_user(db, req.email)
+        
+        return {"success": True, "message": f"Registration successful! You can now login with your email and password."}
             
     except HTTPException:
         raise
@@ -173,9 +165,6 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
     user = get_user_by_email(db, req.email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found. Please register first.")
-    
-    if not user.verified:
-        raise HTTPException(status_code=403, detail="Please verify your email before logging in. Check your inbox for verification link.")
     
     if not user.password_hash:
         raise HTTPException(status_code=400, detail="Account setup incomplete. Please contact support.")

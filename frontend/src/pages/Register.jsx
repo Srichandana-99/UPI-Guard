@@ -38,7 +38,7 @@ export function Register() {
             }
 
             // Show success message and redirect to login
-            alert('Registration successful! Please check your email for a verification link. You must verify your email before logging in.');
+            alert('Registration successful! You can now login with your email and password.');
             navigate('/login');
         } catch (error) {
             console.error('Registration error:', error);
