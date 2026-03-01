@@ -47,6 +47,18 @@ export function Profile() {
     const upiId = user?.upi_id || "user@secureupi"
     const balance = user?.balance ? user.balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"
 
+    // Show loading if user is not loaded yet
+    if (!user) {
+        return (
+            <div className="min-h-screen bg-[#05030A] text-white flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                    <p>Loading profile...</p>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="min-h-screen bg-[#05030A] text-white p-6 pb-24">
             {/* Header */}
