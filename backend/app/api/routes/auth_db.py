@@ -4,9 +4,11 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.db.crud import get_user_by_email, create_user, verify_user
 from app.core.config import settings
-from app.services.email_service import EmailService, OTPService
+from app.db.supabase import supabase_client
+from app.services.email_service import EmailService
 from typing import Optional
 import re
+import bcrypt
 
 router = APIRouter()
 
@@ -48,19 +50,36 @@ class RegisterRequest(BaseModel):
         except (ValueError, TypeError):
             raise ValueError('Age must be a valid number')
 
-class VerifyOTPRequest(BaseModel):
+class SetPasswordRequest(BaseModel):
     email: str
-    otp: str
+    password: str
+    
+    @validator('password')
+    def validate_password(cls, v):
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters')
+        if not re.search(r'[A-Z]', v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not re.search(r'[a-z]', v):
+            raise ValueError('Password must contain at least one lowercase letter')
+        if not re.search(r'\d', v):
+            raise ValueError('Password must contain at least one number')
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
+            raise ValueError('Password must contain at least one special character')
+        return v
+
+class VerifyMagicLinkRequest(BaseModel):
+    token: str
 
 class LoginRequest(BaseModel):
     email: str
-    password: Optional[str] = None
+    password: str
 
 def check_db():
     if not settings.DATABASE_URL:
-        raise HTTPException(status_code=500, detail="Database not configured (DATABASE_URL missing in .env)")
-    if not settings.SENDER_EMAIL or not settings.SENDER_PASSWORD:
-        raise HTTPException(status_code=500, detail="Email service not configured (SENDER_EMAIL and SENDER_PASSWORD missing in .env)")
+        raise HTTPException(status_code=500, detail="Database not configured")
+    if not supabase_client:
+        raise HTTPException(status_code=500, detail="Supabase not configured for magic link authentication")
 
 @router.post("/register")
 async def register(req: RegisterRequest, db: Session = Depends(get_db)):
@@ -77,52 +96,69 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         }
         db_user = create_user(db, user_data)
         
-        # Generate and send OTP
+        # Send magic link via Supabase
         try:
-            otp = OTPService.generate_and_store_otp(req.email, purpose="registration")
-            success = email_service.send_otp_email(req.email, otp, purpose="registration")
-            
-            if not success:
-                raise Exception("Failed to send OTP email")
-                
-            return {"success": True, "message": f"Registration successful. OTP sent to {req.email}"}
+            supabase_client.auth.sign_in_with_otp({
+                "email": req.email,
+                "options": {
+                    "email_redirect_to": f"{settings.CORS_ORIGINS.split(',')[0]}/set-password"
+                }
+            })
+            return {"success": True, "message": f"Magic link sent to {req.email}. Check your email to verify and set password."}
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to send OTP email: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to send magic link: {str(e)}")
             
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/verify-otp")
-async def verify_otp(req: VerifyOTPRequest, db: Session = Depends(get_db)):
+@router.post("/set-password")
+async def set_password(req: SetPasswordRequest, db: Session = Depends(get_db)):
     check_db()
     
-    # Verify OTP using our email service
-    if not OTPService.verify_otp(req.email, req.otp):
-        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
-    
-    user = verify_user(db, req.email)
+    user = get_user_by_email(db, req.email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Generate a simple JWT-like token (in production, use proper JWT)
-    import secrets
-    access_token = secrets.token_urlsafe(32)
+    if not user.is_verified:
+        raise HTTPException(status_code=400, detail="Please verify your email first")
+    
+    # Hash password
+    hashed = bcrypt.hashpw(req.password.encode('utf-8'), bcrypt.gensalt())
+    
+    # Update user password in database
+    user.password_hash = hashed.decode('utf-8')
+    db.commit()
+    
+    return {"success": True, "message": "Password set successfully. You can now login."}
 
-    return {
-        "success": True,
-        "token": access_token,
-        "user": {
-            "id": user.id,
-            "full_name": user.full_name,
+@router.post("/verify-magic-link")
+async def verify_magic_link(req: VerifyMagicLinkRequest, db: Session = Depends(get_db)):
+    check_db()
+    
+    try:
+        # Verify token with Supabase
+        session = supabase_client.auth.verify_otp({
+            "token_hash": req.token,
+            "type": "magiclink"
+        })
+        
+        if not session or not session.user:
+            raise Exception("Invalid magic link")
+        
+        # Mark user as verified
+        user = verify_user(db, session.user.email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {
+            "success": True,
             "email": user.email,
-            "upi_id": user.upi_id,
-            "qr_code": user.qr_code,
-            "balance": float(user.balance),
-            "role": user.role,
+            "message": "Email verified! Please set your password."
         }
-    }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid or expired magic link: {str(e)}")
 
 @router.get("/qr/{email}")
 async def get_user_qr(email: str, db: Session = Depends(get_db)):
@@ -144,15 +180,31 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
     user = get_user_by_email(db, req.email)
     if not user:
         raise HTTPException(status_code=404, detail="User not found. Please register first.")
-
-    # Generate and send OTP
-    try:
-        otp = OTPService.generate_and_store_otp(req.email, purpose="login")
-        success = email_service.send_otp_email(req.email, otp, purpose="login")
-        
-        if not success:
-            raise Exception("Failed to send OTP email")
-            
-        return {"success": True, "message": f"OTP sent to {req.email}", "user": {"email": user.email}}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to send OTP email: {str(e)}")
+    
+    if not user.is_verified:
+        raise HTTPException(status_code=400, detail="Please verify your email first")
+    
+    if not user.password_hash:
+        raise HTTPException(status_code=400, detail="Please set your password first")
+    
+    # Verify password
+    if not bcrypt.checkpw(req.password.encode('utf-8'), user.password_hash.encode('utf-8')):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    
+    # Generate token
+    import secrets
+    access_token = secrets.token_urlsafe(32)
+    
+    return {
+        "success": True,
+        "token": access_token,
+        "user": {
+            "id": user.id,
+            "full_name": user.full_name,
+            "email": user.email,
+            "upi_id": user.upi_id,
+            "qr_code": user.qr_code,
+            "balance": float(user.balance),
+            "role": user.role,
+        }
+    }
