@@ -76,6 +76,7 @@ export function SendMoney() {
         }
 
         // Check if account is suspicious
+        let accountExists = false;
         try {
             console.log('🔍 Checking suspicious account for:', upiId);
             const suspiciousCheck = await checkSuspiciousAccount(upiId);
@@ -86,19 +87,25 @@ export function SendMoney() {
                 setRecipientSuspicious(true);
                 setSuspiciousData(suspiciousCheck);
                 setRecipientName(suspiciousCheck.name);
+                accountExists = true;
             } else if (suspiciousCheck.exists) {
                 console.log('✅ Account exists but not suspicious');
                 setRecipientName(suspiciousCheck.name);
+                accountExists = true;
             } else {
                 console.log('❓ Account not found in database');
                 setRecipientName(upiId.split('@')[0]);
+                setUpiError('Account not found. Please verify the UPI ID.');
+                accountExists = false;
             }
         } catch (error) {
             console.error('❌ Error checking suspicious account:', error);
             setRecipientName(upiId.split('@')[0]);
+            setUpiError('Unable to verify account. Please try again.');
+            accountExists = false;
         }
 
-        setRecipientVerified(true)
+        setRecipientVerified(accountExists)
         setValidatingUPI(false)
     }
 
