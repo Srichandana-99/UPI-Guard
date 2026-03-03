@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection - users can only read their own document
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false; // only Cloud Functions can write
+    }
+    
+    // Transactions collection - users can only read their own transactions
+    match /transactions/{transactionId} {
+      allow read: if request.auth != null && 
+                     (resource.data.sender_uid == request.auth.uid ||
+                      resource.data.recipient_uid == request.auth.uid);
+      allow write: if false; // only Cloud Functions can write
+    }
+  }
+}

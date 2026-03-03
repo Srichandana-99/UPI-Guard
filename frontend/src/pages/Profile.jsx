@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { User, Landmark, ShieldCheck, Fingerprint, HelpCircle, ChevronRight, CheckCircle2, Camera, Bell } from 'lucide-react'
+import { User, Landmark, ShieldCheck, Fingerprint, HelpCircle, ChevronRight, CheckCircle2, Camera, Bell, KeyRound } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
 export function Profile() {
-    const { user, logout, checkBiometricSupport, checkCameraPermission } = useAuth()
+    const { user, logout, loading } = useAuth()
     const navigate = useNavigate()
     const [fraudShieldActive, setFraudShieldActive] = useState(true)
     const [biometricActive, setBiometricActive] = useState(false)
@@ -13,16 +13,36 @@ export function Profile() {
     const [notificationPermission, setNotificationPermission] = useState('default')
     const [toastMessage, setToastMessage] = useState(null)
 
+    // Redirect to login if not authenticated
+    useEffect(() => {
+        if (!loading && !user) {
+            navigate('/login')
+        }
+    }, [user, loading, navigate])
+
     useEffect(() => {
         // Check permissions on mount
         const checkPermissions = async () => {
-            // Check biometric support
-            const biometricSupported = await checkBiometricSupport()
-            setBiometricActive(biometricSupported)
+            // Check biometric support (WebAuthn)
+            if (window.PublicKeyCredential) {
+                try {
+                    const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+                    setBiometricActive(available)
+                } catch (e) {
+                    setBiometricActive(false)
+                }
+            }
 
             // Check camera permission
-            const camPerm = await checkCameraPermission()
-            setCameraPermission(camPerm)
+            if (navigator.permissions && navigator.permissions.query) {
+                try {
+                    const result = await navigator.permissions.query({ name: 'camera' })
+                    setCameraPermission(result.state)
+                    result.onchange = () => setCameraPermission(result.state)
+                } catch (e) {
+                    setCameraPermission('prompt')
+                }
+            }
 
             // Check notification permission
             if ('Notification' in window) {
@@ -30,7 +50,7 @@ export function Profile() {
             }
         }
         checkPermissions()
-    }, [checkBiometricSupport, checkCameraPermission])
+    }, [])
 
     const triggerToast = (msg) => {
         setToastMessage(msg)
@@ -42,9 +62,9 @@ export function Profile() {
         navigate('/login')
     }
 
-    const initial = user?.full_name ? user.full_name.charAt(0).toUpperCase() : "U"
-    const fullName = user?.full_name || "User"
-    const upiId = user?.upi_id || "user@secureupi"
+    const initial = user?.name ? user.name.charAt(0).toUpperCase() : "U"
+    const fullName = user?.name || "User"
+    const upiId = user?.upiId || user?.upi_id || "user@secureupi"
     const balance = user?.balance ? user.balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"
 
     // Show loading if user is not loaded yet
@@ -120,7 +140,7 @@ export function Profile() {
                     <div onClick={() => navigate('/set-password')} className="flex items-center justify-between p-4 border-b border-[#1C1C26] cursor-pointer hover:bg-[#1A1825] transition-colors">
                         <div className="flex items-center gap-4">
                             <div className="w-10 h-10 bg-[#1A1825] rounded-full flex items-center justify-center shrink-0">
-                                <Lock className="w-5 h-5 text-secure-blue" />
+                                <KeyRound className="w-5 h-5 text-secure-blue" />
                             </div>
                             <span className="font-semibold text-sm">Change Password</span>
                         </div>

@@ -3,12 +3,15 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ChevronLeft, Info, CheckCircle2, Menu, Shield, Lock, AlertTriangle, Share2, Download, ArrowLeft, XCircle, User, CheckCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getUserLocation, initiateTransaction, checkSuspiciousAccount } from '../lib/api'
 
 export function SendMoney() {
     const [amount, setAmount] = useState('');
     const [recipient, setRecipient] = useState('');
     const [recipientName, setRecipientName] = useState('');
     const [recipientVerified, setRecipientVerified] = useState(false);
+    const [recipientSuspicious, setRecipientSuspicious] = useState(false);
+    const [suspiciousData, setSuspiciousData] = useState(null);
     const [validatingUPI, setValidatingUPI] = useState(false);
     const [upiError, setUpiError] = useState('');
     const [message, setMessage] = useState('');
@@ -18,10 +21,12 @@ export function SendMoney() {
     const [loading, setLoading] = useState(false);
     const [fraudResult, setFraudResult] = useState(null);
     const [transactionData, setTransactionData] = useState(null);
+    const [showFraudConfirm, setShowFraudConfirm] = useState(false);
+    const inputRefs = React.useRef([]);
 
     const navigate = useNavigate();
     const location = useLocation();
-    const { user, logUserLocation } = useAuth();
+    const { user, refreshUser } = useAuth();
 
     // Check if we arrived from the QR Scanner
     React.useEffect(() => {
@@ -42,35 +47,60 @@ export function SendMoney() {
         return () => clearTimeout(timer);
     }, [recipient]);
 
-    const validateRecipient = async (upiId) => {
-        if (!upiId || upiId.length < 5) return;
-        
-        setValidatingUPI(true);
-        setUpiError('');
-        setRecipientVerified(false);
-        
-        try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/transaction/validate-upi`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ upi_id: upiId })
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                setRecipientName(data.name);
-                setRecipientVerified(true);
-            } else {
-                setUpiError('UPI ID not found');
-                setRecipientVerified(false);
-            }
-        } catch (err) {
-            setUpiError('Unable to validate UPI ID');
-            setRecipientVerified(false);
-        } finally {
-            setValidatingUPI(false);
+    // Auto-focus first PIN input when modal opens
+    useEffect(() => {
+        if (showPinModal && inputRefs.current[0]) {
+            // Small delay to allow modal animation to start
+            setTimeout(() => {
+                inputRefs.current[0]?.focus();
+            }, 100);
         }
-    };
+    }, [showPinModal]);
+
+    const validateRecipient = async (upiId) => {
+        if (!upiId || upiId.length < 5) return
+
+        setValidatingUPI(true)
+        setUpiError('')
+        setRecipientSuspicious(false)
+        setSuspiciousData(null)
+
+        // Client cannot read other users due to Firestore rules; validate format only.
+        const ok = /^[a-zA-Z0-9._-]{3,}@[a-zA-Z0-9._-]{2,}$/.test(upiId)
+        if (!ok) {
+            setRecipientVerified(false)
+            setRecipientName('')
+            setUpiError('Invalid UPI ID format')
+            setValidatingUPI(false)
+            return
+        }
+
+        // Check if account is suspicious
+        try {
+            console.log('🔍 Checking suspicious account for:', upiId);
+            const suspiciousCheck = await checkSuspiciousAccount(upiId);
+            console.log('📊 Suspicious check result:', suspiciousCheck);
+            
+            if (suspiciousCheck.exists && suspiciousCheck.suspicious) {
+                console.log('🚨 SUSPICIOUS ACCOUNT DETECTED!');
+                setRecipientSuspicious(true);
+                setSuspiciousData(suspiciousCheck);
+                setRecipientName(suspiciousCheck.name);
+            } else if (suspiciousCheck.exists) {
+                console.log('✅ Account exists but not suspicious');
+                setRecipientName(suspiciousCheck.name);
+            } else {
+                console.log('❓ Account not found in database');
+                setRecipientName(upiId.split('@')[0]);
+            }
+        } catch (error) {
+            console.error('❌ Error checking suspicious account:', error);
+            setRecipientName(upiId.split('@')[0]);
+        }
+
+        setRecipientVerified(true)
+        setValidatingUPI(false)
+    }
 
     const handleAmountChange = (e) => {
         // Only allow numbers
@@ -89,16 +119,47 @@ export function SendMoney() {
             setUpiError('Please enter a valid UPI ID');
             return;
         }
+        // If recipient is suspicious, show confirmation first
+        if (recipientSuspicious) {
+            setShowFraudConfirm(true);
+            return;
+        }
         setShowPinModal(true);
     };
 
-    const handlePinChange = (element, index) => {
-        if (isNaN(element.value)) return;
+    const handlePinChange = (index, value) => {
+        if (value && !/^\d*$/.test(value)) return;
+        
         const newPin = [...pin];
-        newPin[index] = element.value;
+        // Only take the last character if multiple digits pasted
+        newPin[index] = value.slice(-1);
         setPin(newPin);
-        if (element.nextSibling && element.value !== '') {
-            element.nextSibling.focus();
+        
+        // Auto-advance to next field if current is filled
+        if (value && index < 3) {
+            inputRefs.current[index + 1]?.focus();
+        }
+    };
+    
+    const handlePinKeyDown = (index, e) => {
+        // Move to previous field on backspace if current is empty
+        if (e.key === 'Backspace' && !pin[index] && index > 0) {
+            inputRefs.current[index - 1]?.focus();
+        }
+    };
+    
+    const handlePinPaste = (e) => {
+        e.preventDefault();
+        const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
+        if (pastedData) {
+            const newPin = [...pin];
+            pastedData.split('').forEach((digit, i) => {
+                if (i < 4) newPin[i] = digit;
+            });
+            setPin(newPin);
+            // Focus the appropriate field after paste
+            const focusIndex = Math.min(pastedData.length, 3);
+            inputRefs.current[focusIndex]?.focus();
         }
     };
 
@@ -108,54 +169,59 @@ export function SendMoney() {
         setLoading(true);
 
         try {
-            // Log location for transaction
-            if (user?.email) {
-                logUserLocation(user.email, 'transaction');
+            const transactionAmount = parseFloat(amount);
+            const loc = await getUserLocation().catch(() => ({ latitude: 0, longitude: 0 }))
+
+            // Call backend API to initiate transaction
+            const result = await initiateTransaction({
+                recipient_upi: recipient,
+                amount: transactionAmount,
+                latitude: loc.latitude ?? 0,
+                longitude: loc.longitude ?? 0,
+                transaction_pin: pin.join('')
+            })
+
+            if (result?.is_fraud) {
+                setPaymentStatus('fraud')
+                setTransactionData({
+                    amount: transactionAmount,
+                    recipient: recipientName || recipient,
+                    recipientUpi: recipient,
+                    transactionId: result.transaction_id,
+                    date: new Date().toLocaleString()
+                })
+                setFraudResult(result)
+                setShowPinModal(false)
+                return
             }
 
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/transaction/transfer`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sender_email: user?.email || 'demo@upi',
-                    transaction_id: `txn_${Date.now()}`,
-                    amount: parseFloat(amount),
-                    receiver_upi_id: recipient,
-                }),
-            });
-
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.detail || 'Transaction failed');
+            if (!result?.success) {
+                throw new Error(result?.error || 'Transaction failed')
             }
 
-            setFraudResult(data.fraud_details);
             setTransactionData({
-                amount: parseFloat(amount),
+                amount: transactionAmount,
                 recipient: recipientName,
                 recipientUpi: recipient,
-                transactionId: data.fraud_details?.transaction_id || `txn_${Date.now()}`,
+                transactionId: result.transaction_id,
                 date: new Date().toLocaleString(),
             });
 
-            if (data.success) {
-                setPaymentStatus('success');
-            } else if (data.fraud_details?.decision === 'Block') {
-                setPaymentStatus('fraud');
-            } else {
-                setPaymentStatus('failed');
-            }
-
+            setPaymentStatus('success');
             setShowPinModal(false);
+            
+            // Refresh user balance
+            if (refreshUser) {
+                await refreshUser();
+            }
         } catch (err) {
-            console.error(err);
+            console.error('Transaction error:', err);
             setPaymentStatus('failed');
             setTransactionData({
                 amount: parseFloat(amount),
                 recipient: recipientName || recipient,
                 recipientUpi: recipient,
-                error: err.message,
+                error: err.message || 'Transaction failed'
             });
             setShowPinModal(false);
         } finally {
@@ -191,10 +257,15 @@ export function SendMoney() {
                     {pin.map((p, index) => (
                         <input
                             key={index}
+                            ref={(el) => (inputRefs.current[index] = el)}
                             type="password"
                             maxLength="1"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
                             value={p}
-                            onChange={(e) => handlePinChange(e.target, index)}
+                            onChange={(e) => handlePinChange(index, e.target.value)}
+                            onKeyDown={(e) => handlePinKeyDown(index, e)}
+                            onPaste={handlePinPaste}
                             onFocus={(e) => e.target.select()}
                             className="w-14 h-16 bg-white text-black text-center text-3xl font-bold rounded-2xl focus:outline-none focus:ring-2 focus:ring-secure-blue"
                         />
@@ -208,6 +279,62 @@ export function SendMoney() {
                 >
                     {loading ? 'Processing...' : 'Authorize & Pay'}
                 </button>
+            </motion.div>
+        </div>
+    );
+
+    // ----------------------------------------------------------------------
+    // FRAUD CONFIRMATION MODAL
+    // ----------------------------------------------------------------------
+    const FraudConfirmModal = () => (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#05030A]/90 backdrop-blur-sm p-6 overflow-hidden max-w-md mx-auto">
+            <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="w-full bg-[#12101B] border-2 border-red-500/50 rounded-[2rem] p-8 shadow-2xl relative text-center"
+            >
+                <div className="w-20 h-20 bg-red-500/20 rounded-full mx-auto flex items-center justify-center mb-6">
+                    <Shield className="w-10 h-10 text-red-500" />
+                </div>
+
+                <h3 className="text-2xl font-bold mb-3 tracking-tight text-white">⚠️ High Risk Warning</h3>
+                
+                <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6 text-left">
+                    <p className="text-red-400 text-sm font-semibold mb-2">
+                        This recipient has been flagged as suspicious:
+                    </p>
+                    <ul className="text-red-300 text-xs space-y-1 list-disc pl-4">
+                        <li>Fraud Rate: {suspiciousData?.fraud_stats?.fraud_rate || 'High'}%</li>
+                        <li>Blocked Transactions: {suspiciousData?.fraud_stats?.blocked_count || 'Multiple'}</li>
+                        <li>Account Status: High Risk</li>
+                    </ul>
+                </div>
+
+                <p className="text-secure-textMuted text-sm mb-6">
+                    Sending money to this account is <strong className="text-red-400">NOT RECOMMENDED</strong>. 
+                    Your transaction may result in loss of funds.
+                </p>
+
+                <div className="space-y-3">
+                    <button
+                        onClick={() => {
+                            setShowFraudConfirm(false);
+                            setShowPinModal(true);
+                        }}
+                        className="w-full bg-red-500 hover:bg-red-600 text-white font-bold rounded-2xl py-4 flex items-center justify-center transition-all"
+                    >
+                        <AlertTriangle className="w-5 h-5 mr-2" />
+                        I Understand - Proceed Anyway
+                    </button>
+                    
+                    <button
+                        onClick={() => setShowFraudConfirm(false)}
+                        className="w-full bg-[#1A1825] border border-[#232332] hover:bg-[#232332] text-white font-semibold rounded-2xl py-4 transition-all"
+                    >
+                        Cancel Transaction
+                    </button>
+                </div>
             </motion.div>
         </div>
     );
@@ -484,7 +611,7 @@ export function SendMoney() {
                     </div>
                     
                     {/* Recipient validation status */}
-                    {recipientVerified && recipientName && (
+                    {recipientVerified && recipientName && !recipientSuspicious && (
                         <motion.div 
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -492,6 +619,33 @@ export function SendMoney() {
                         >
                             <User className="w-4 h-4 text-green-500" />
                             <span className="text-xs font-semibold text-green-400">{recipientName}</span>
+                        </motion.div>
+                    )}
+                    
+                    {/* Suspicious account warning */}
+                    {recipientSuspicious && suspiciousData && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-red-500/10 border-2 border-red-500/50 rounded-xl py-3 px-3 mb-3"
+                        >
+                            <div className="flex items-start gap-2 mb-2">
+                                <Shield className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-sm font-bold text-red-500">⚠️ SUSPICIOUS ACCOUNT</span>
+                                    </div>
+                                    <p className="text-xs text-red-400 font-semibold mb-2">{recipientName}</p>
+                                    <div className="text-[10px] text-red-300 space-y-1">
+                                        <div>• Fraud Rate: {suspiciousData.fraud_stats?.fraud_rate}%</div>
+                                        <div>• Blocked Transactions: {suspiciousData.fraud_stats?.blocked_count}</div>
+                                        <div>• Total Transactions: {suspiciousData.fraud_stats?.total_transactions}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-red-500/20 rounded-lg py-2 px-2.5 text-[10px] text-red-200 font-semibold">
+                                ⚠️ This account has a history of fraudulent activity. Proceed with caution!
+                            </div>
                         </motion.div>
                     )}
                     
@@ -572,6 +726,7 @@ export function SendMoney() {
             </div>
 
             <AnimatePresence>
+                {showFraudConfirm && <FraudConfirmModal />}
                 {showPinModal && <PinModal />}
             </AnimatePresence>
         </div>

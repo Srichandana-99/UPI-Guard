@@ -1,4 +1,6 @@
-venv
-__pycache__
+node_modules/
 .env
-*.pyc
+database.sqlite
+database.sqlite-journal
+*.log
+.DS_Store

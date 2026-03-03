@@ -7,8 +7,7 @@ import { formatDistanceToNow, parseISO } from 'date-fns'
 
 export function Dashboard() {
     const navigate = useNavigate()
-    const { user } = useAuth()
-    const [transactions, setTransactions] = useState([])
+    const { user, realtimeTransactions } = useAuth()
     const [loadingTxns, setLoadingTxns] = useState(true)
     const [protectionActive, setProtectionActive] = useState(true)
     const [toastMessage, setToastMessage] = useState(null)
@@ -25,36 +24,28 @@ export function Dashboard() {
         }
     }
 
-    // Use data from backend session if available
-    const balance = user?.balance ? user.balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : null
-    let initial = user?.full_name ? user.full_name.charAt(0).toUpperCase() : "U"
-    let fullName = user?.full_name || null
-    let upiId = user?.upi_id || null
+    // Use data from Firebase user if available
+    const balance = user?.balance !== undefined && user?.balance !== null 
+        ? user.balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) 
+        : null
+    const display = user?.full_name || user?.name || user?.displayName || "User"
+    let initial = display ? display.charAt(0).toUpperCase() : "U"
+    let fullName = display
+    let upiId = user?.upiId || user?.upi_id || null
 
-    // Fetch transactions from our new API
+    // Debug logging
     useEffect(() => {
-        const fetchHistory = async () => {
-            if (!user?.email) return;
-            try {
-                const res = await fetch(`${import.meta.env.VITE_API_URL}/transaction/history/${encodeURIComponent(user.email)}`, {
-                    headers: {
-                        'Authorization': `Bearer ${user?.token || localStorage.getItem('token')}`
-                    }
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.success) {
-                        setTransactions(data.transactions);
-                    }
-                }
-            } catch (err) {
-                console.error("Failed to load history:", err);
-            } finally {
-                setLoadingTxns(false);
-            }
-        };
-        fetchHistory();
-    }, [user]);
+        console.log('Dashboard user:', user)
+        console.log('Balance:', user?.balance)
+        console.log('Realtime transactions:', realtimeTransactions)
+    }, [user, realtimeTransactions])
+
+    // Use real-time transactions from Firebase
+    useEffect(() => {
+        if (user?.uid) setLoadingTxns(false)
+    }, [realtimeTransactions, user?.uid])
+
+    const transactions = realtimeTransactions || []
 
     return (
         <div className="p-6 text-white min-h-full pb-20">
@@ -182,8 +173,8 @@ export function Dashboard() {
                     ) : (
                         transactions.slice(0, 5).map((txn, idx) => {
                             const isFraud = txn.status === 'Blocked';
-                            const isReceived = txn.type === 'received';
-                            const displayUpi = isReceived ? (txn.sender_upi_id || 'Unknown') : (txn.receiver_upi_id || 'Unknown');
+                            const isReceived = txn.recipient_uid === user?.uid
+                            const displayUpi = isReceived ? (txn.sender_upi || 'Unknown') : (txn.recipient_upi || 'Unknown')
 
                             let iconObj = <Send className="w-5 h-5 text-white" />;
                             if (isFraud) {
@@ -194,11 +185,12 @@ export function Dashboard() {
                                 iconObj = <ArrowDownToLine className="w-5 h-5 text-[#00D06C]" />
                             }
 
-                            // Format relative time if date exists
+                            // Format relative time if timestamp exists
                             let timeStr = "Just now";
                             try {
-                                if (txn.date) {
-                                    timeStr = formatDistanceToNow(parseISO(txn.date), { addSuffix: true })
+                                if (txn.timestamp) {
+                                    const dt = txn.timestamp.toDate ? txn.timestamp.toDate() : new Date(txn.timestamp)
+                                    timeStr = formatDistanceToNow(dt, { addSuffix: true })
                                 }
                             } catch (e) { }
 

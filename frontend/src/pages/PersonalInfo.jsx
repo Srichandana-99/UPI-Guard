@@ -8,10 +8,10 @@ export function PersonalInfo() {
     const { user } = useAuth()
     const navigate = useNavigate()
 
-    const initial = user?.full_name ? user.full_name.charAt(0).toUpperCase() : "U"
-    const fullName = user?.full_name || "User"
+    const initial = user?.name ? user.name.charAt(0).toUpperCase() : "U"
+    const fullName = user?.name || "User"
     const email = user?.email || "user@example.com"
-    const mobile = user?.mobile || "+91 0000000000"
+    const mobile = user?.mobile || "Not set"
     const dob = user?.dob || "Not set"
     const age = user?.age || "N/A"
 

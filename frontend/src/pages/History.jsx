@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Lock, AlertTriangle, ShieldCheck, ArrowUpRight, ArrowDownLeft, Loader2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { formatDistanceToNow, parseISO } from 'date-fns'
+import { getTransactionHistory } from '../lib/api'
 
 export function History() {
     const [search, setSearch] = useState('')
@@ -14,15 +15,11 @@ export function History() {
     // Fetch transactions from backend
     useEffect(() => {
         const fetchTransactions = async () => {
-            if (!user?.email) return
+            if (!user) return
             try {
-                const res = await fetch(`${import.meta.env.VITE_API_URL}/transaction/history/${encodeURIComponent(user.email)}`)
-                if (res.ok) {
-                    const data = await res.json()
-                    if (data.success) {
-                        setTransactions(data.transactions)
-                    }
-                }
+                setLoading(true)
+                const data = await getTransactionHistory(50)
+                setTransactions(data)
             } catch (err) {
                 console.error('Failed to load history:', err)
             } finally {
@@ -34,32 +31,59 @@ export function History() {
 
     // Filter transactions
     const filteredTransactions = transactions.filter(txn => {
-        if (filter === 'sent') return txn.type === 'sent'
-        if (filter === 'received') return txn.type === 'received'
+        const isSent = txn.sender_uid === user?.uid
+        const isReceived = txn.recipient_uid === user?.uid
+        
+        console.log('Filtering transaction:', {
+            txnId: txn.id,
+            sender_uid: txn.sender_uid,
+            recipient_uid: txn.recipient_uid,
+            userUid: user?.uid,
+            isSent,
+            isReceived,
+            filter
+        });
+        
+        if (filter === 'sent') return isSent
+        if (filter === 'received') return isReceived
         return true
     }).filter(txn => {
         if (!search) return true
         const searchLower = search.toLowerCase()
         return (
-            (txn.receiver_upi_id && txn.receiver_upi_id.toLowerCase().includes(searchLower)) ||
-            (txn.sender_upi_id && txn.sender_upi_id.toLowerCase().includes(searchLower)) ||
-            (txn.transaction_id && txn.transaction_id.toLowerCase().includes(searchLower))
+            (txn.recipient_upi && txn.recipient_upi.toLowerCase().includes(searchLower)) ||
+            (txn.sender_upi && txn.sender_upi.toLowerCase().includes(searchLower)) ||
+            (txn.transactionId && txn.transactionId.toLowerCase().includes(searchLower))
         )
     })
 
+    console.log('Filtered transactions:', filteredTransactions);
+
     // Group by date
     const grouped = filteredTransactions.reduce((acc, curr) => {
-        const date = curr.date ? new Date(curr.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown'
+        let date;
+        try {
+            if (curr.timestamp) {
+                const timestamp = curr.timestamp.toDate ? curr.timestamp.toDate() : new Date(curr.timestamp);
+                date = timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            } else {
+                date = 'Unknown';
+            }
+        } catch (e) {
+            date = 'Unknown';
+        }
+        
         if (!acc[date]) acc[date] = []
         acc[date].push(curr)
         return acc
     }, {})
 
     const getName = (txn) => {
-        if (txn.type === 'sent') {
-            return txn.receiver_upi_id?.split('@')[0] || 'Unknown'
+        const isSent = txn.sender_uid === user?.uid
+        if (isSent) {
+            return txn.recipient_upi?.split('@')[0] || 'Unknown'
         }
-        return txn.sender_upi_id?.split('@')[0] || 'Unknown'
+        return txn.sender_upi?.split('@')[0] || 'Unknown'
     }
 
     if (loading) {
@@ -127,26 +151,29 @@ export function History() {
                             <h3 className="text-[10px] font-bold tracking-widest text-[#505068] uppercase mb-3 ml-2">{group}</h3>
                             <div className="space-y-3">
                                 <AnimatePresence>
-                                    {grouped[group].map((txn, index) => (
+                                    {grouped[group].map((txn, index) => {
+                                        const isSent = txn.sender_uid === user?.uid
+                                        const isReceived = txn.recipient_uid === user?.uid
+                                        return (
                                         <motion.div
                                             initial={{ opacity: 0, y: 10 }}
                                             animate={{ opacity: 1, y: 0 }}
                                             exit={{ opacity: 0, x: -20 }}
                                             transition={{ delay: index * 0.05 }}
-                                            key={txn.transaction_id}
+                                            key={txn.id || txn.transactionId}
                                             className="bg-[#12101B] border border-[#232332] rounded-2xl p-4 flex items-center gap-4 hover:bg-[#1A1825] transition-colors"
                                         >
                                             {/* Icon with type indicator */}
                                             <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
                                                 txn.status === 'Blocked' 
                                                     ? 'bg-red-500/20' 
-                                                    : txn.type === 'received'
+                                                    : isReceived
                                                         ? 'bg-green-500/20'
                                                         : 'bg-secure-blue/20'
                                             }`}>
                                                 {txn.status === 'Blocked' ? (
                                                     <AlertTriangle className="w-5 h-5 text-red-500" />
-                                                ) : txn.type === 'received' ? (
+                                                ) : isReceived ? (
                                                     <ArrowDownLeft className="w-5 h-5 text-green-500" />
                                                 ) : (
                                                     <ArrowUpRight className="w-5 h-5 text-secure-blue" />
@@ -156,19 +183,29 @@ export function History() {
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
                                                     <h4 className="font-semibold text-sm truncate capitalize">
-                                                        {txn.type === 'sent' ? 'To ' : 'From '}{getName(txn)}
+                                                        {isSent ? 'To ' : 'From '}{getName(txn)}
                                                     </h4>
                                                     <span className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                                                        txn.type === 'sent'
+                                                        isSent
                                                             ? 'bg-secure-blue/10 text-secure-blue'
                                                             : 'bg-green-500/10 text-green-500'
                                                     }`}>
-                                                        {txn.type}
+                                                        {isSent ? 'sent' : 'received'}
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <span className="text-xs text-secure-textMuted">
-                                                        {txn.date ? formatDistanceToNow(parseISO(txn.date), { addSuffix: true }) : 'Unknown time'}
+                                                        {(() => {
+                                                            try {
+                                                                if (txn.timestamp) {
+                                                                    const timestamp = txn.timestamp.toDate ? txn.timestamp.toDate() : new Date(txn.timestamp);
+                                                                    return formatDistanceToNow(timestamp, { addSuffix: true });
+                                                                }
+                                                                return 'Unknown time';
+                                                            } catch (e) {
+                                                                return 'Unknown time';
+                                                            }
+                                                        })()}
                                                     </span>
                                                     {txn.status === 'Blocked' ? (
                                                         <span className="flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
@@ -176,7 +213,7 @@ export function History() {
                                                         </span>
                                                     ) : (
                                                         <span className="flex items-center gap-1 text-[8px] font-bold uppercase tracking-wider text-secure-blue bg-secure-blue/10 px-2 py-0.5 rounded-full border border-secure-blue/20">
-                                                            <ShieldCheck className="w-2.5 h-2.5" /> {txn.status}
+                                                            <ShieldCheck className="w-2.5 h-2.5" /> {txn.status || 'completed'}
                                                         </span>
                                                     )}
                                                 </div>
@@ -186,19 +223,19 @@ export function History() {
                                                 <span className={`font-bold ${
                                                     txn.status === 'Blocked' 
                                                         ? 'text-secure-textMuted line-through' 
-                                                        : txn.type === 'received'
+                                                        : isReceived
                                                             ? 'text-green-500'
                                                             : 'text-white'
                                                 }`}>
-                                                    {txn.type === 'received' ? '+' : txn.status === 'Blocked' ? '' : '-'}
+                                                    {isReceived ? '+' : txn.status === 'Blocked' ? '' : '-'}
                                                     ₹{parseFloat(txn.amount).toLocaleString('en-IN')}
                                                 </span>
                                                 <div className={`w-2 h-2 rounded-full ${
-                                                    txn.status === 'Blocked' ? 'bg-red-500' : txn.type === 'received' ? 'bg-green-500' : 'bg-secure-blue'
+                                                    txn.status === 'Blocked' ? 'bg-red-500' : isReceived ? 'bg-green-500' : 'bg-secure-blue'
                                                 }`} />
                                             </div>
                                         </motion.div>
-                                    ))}
+                                    )})}
                                 </AnimatePresence>
                             </div>
                         </div>

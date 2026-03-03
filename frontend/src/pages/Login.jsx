@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Shield, Lock, User, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useAuth } from '../context/AuthContext'
+import { resetPassword } from '../lib/api'
 
 export function Login() {
     const [email, setEmail] = useState('')
@@ -9,7 +11,9 @@ export function Login() {
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState(null)
     const [loading, setLoading] = useState(false)
+    const [resetSent, setResetSent] = useState(false)
     const navigate = useNavigate()
+    const { login } = useAuth()
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -17,28 +21,33 @@ export function Login() {
         setLoading(true)
         
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            });
-            const data = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(data.detail || 'Login failed');
-            }
-            
-            // Store token and user data
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('user', JSON.stringify(data.user));
-            
-            // Reload to update AuthContext
-            window.location.href = '/dashboard';
+            await login(email, password)
+            navigate('/')
         } catch (err) {
             console.error('Login failed:', err)
             setError(err?.message || 'Invalid email or password')
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleForgotPassword = async () => {
+        if (!email) {
+            setError('Please enter your email address first')
+            return
+        }
+        
+        const newPassword = prompt('Enter your new password:')
+        if (!newPassword) return
+        
+        try {
+            await resetPassword(email, newPassword)
+            setResetSent(true)
+            setError(null)
+            setTimeout(() => setResetSent(false), 5000)
+        } catch (err) {
+            console.error('Password reset failed:', err)
+            setError('Failed to reset password')
         }
     }
 
@@ -68,7 +77,7 @@ export function Login() {
                 >
                     <div className="mb-8">
                         <h2 className="text-[2rem] leading-tight font-extrabold mb-2 tracking-tight">Welcome Back</h2>
-                        <p className="text-secure-textMuted text-sm">Enter your credentials to access your account</p>
+                        <p className="text-secure-textMuted text-sm">Sign in to your secure account</p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
@@ -124,6 +133,22 @@ export function Login() {
                                 {error}
                             </div>
                         )}
+
+                        {resetSent && (
+                            <div className="bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-semibold rounded-2xl p-3">
+                                Password reset email sent! Check your inbox.
+                            </div>
+                        )}
+
+                        <div className="flex justify-end">
+                            <button
+                                type="button"
+                                onClick={handleForgotPassword}
+                                className="text-xs text-secure-blue hover:text-blue-400 transition-colors"
+                            >
+                                Forgot Password?
+                            </button>
+                        </div>
 
                         <div className="pt-4">
                             <button

@@ -1,67 +1,64 @@
-# Environment Variables
-.env
-.env.backup
+# Dependencies
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+model/venv/
 
-# Database files
+# Environment variables
+.env
+.env.local
+.env.production
+backend/.env
+frontend/.env
+
+# Database
+backend/database.sqlite
+backend/database.sqlite-journal
 *.db
 *.sqlite
-*.sqlite3
+
+# Build outputs
+frontend/dist/
+frontend/build/
+backend/dist/
 
 # Logs
-logs/
 *.log
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Node.js
-node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-lerna-debug.log*
+logs/
 
-# Build outputs
-dist/
-build/
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
+*.sublime-project
+*.sublime-workspace
 
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Docker
-.dockerignore
+# Firebase (backup)
+firebase-backup/
 
 # Temporary files
+tmp/
+temp/
 *.tmp
-*.temp
 
-# Coverage reports
+# Package manager
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Testing
 coverage/
-.nyc_output
-.coverage
+.nyc_output/
 
-# Test files
-test_*.db
-test_*.sqlite
+# Misc
+.cache/
+.parcel-cache/

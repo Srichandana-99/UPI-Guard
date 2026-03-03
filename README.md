@@ -1,228 +1,247 @@
-# UPI Guard - Real-time Fraud Detection System
+# UPI Guard
 
-A full-stack Progressive Web App (PWA) for detecting fraudulent UPI transactions in real-time. Features OTP-based authentication via Supabase, offline support, and a modern React frontend.
+A secure UPI payment application with AI-powered fraud detection. Built with React, Node.js, Express, and SQLite.
 
-## 🚀 Features
-- **Secure Authentication:** Passwordless OTP login via email (Supabase Auth)
-- **Real-time Fraud Detection:** Analyzes transactions for velocity, location mismatch, and new receivers
-- **Admin Dashboard:** Monitor all users, transactions, and system health
-- **Location Tracking:** Logs user sessions and detects geographic anomalies
-- **Progressive Web App:** Install on home screen, works offline, push notifications
-- **Offline Support:** IndexedDB storage, automatic sync when online
-- **Push Notifications:** Real-time alerts for transactions and fraud detection
+## 🎯 Features
 
----
+- **Secure UPI Payments** - Send and receive money with UPI IDs
+- **AI Fraud Detection** - 5-layer fraud detection engine with ML model support
+- **Real-time Protection** - Location-based anomaly detection and velocity checks
+- **QR Code Support** - Generate and scan UPI QR codes for instant payments
+- **Transaction History** - Complete transaction logs with fraud status
+- **Balance Management** - Automatic balance tracking and updates
+- **JWT Authentication** - Secure email/password authentication
+- **Suspicious Account Flagging** - Auto-flag high-risk accounts
 
-## 🛠️ Tech Stack
-- **Frontend:** React (Vite), TailwindCSS, Framer Motion, Lucide Icons, PWA
-- **Backend:** Python, FastAPI, SQLAlchemy
-- **Database:** PostgreSQL (via Supabase)
-- **Authentication:** Supabase Auth (Email OTP)
-- **Offline Storage:** IndexedDB, Service Workers
-- **Deployment:** Vercel (Frontend), Render (Backend)
+## 🏗️ Architecture
 
----
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        UPI GUARD                            │
+├─────────────────────────────────────────────────────────────┤
+│  Frontend (React + Vite)    │   Backend (Express + SQLite)   │
+│  ├─ React Router           │   ├─ REST API                 │
+│  ├─ Tailwind CSS           │   ├─ JWT Authentication       │
+│  ├─ Framer Motion          │   ├─ Fraud Detection Engine   │
+│  ├─ Lucide Icons           │   ├─ SQLite Database          │
+│  └─ Context API            │   └─ ML Model Integration     │
+│                            │                                │
+│  Port: 5173               │   Port: 5001                   │
+└─────────────────────────────────────────────────────────────┘
+```
 
-## 🏃‍♂️ Quick Start (Local Development)
+### Tech Stack
 
-### 1. Clone the Repository
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | React 19, Vite 7, Tailwind CSS, Framer Motion |
+| **Backend** | Node.js, Express.js, SQLite (better-sqlite3) |
+| **Auth** | JWT (jsonwebtoken), bcryptjs |
+| **ML** | Python, scikit-learn, XGBoost |
+| **QR Codes** | qrcode (Node.js) |
+
+### Database Schema
+
+**Users Table:**
+- `uid`, `name`, `email`, `password_hash`, `upi_id`, `qr_code`, `balance`
+- `usual_location_lat`, `usual_location_lon`, `transaction_count`, `created_at`
+
+**Transactions Table:**
+- `transaction_id`, `sender_uid`, `recipient_uid`, `recipient_upi`, `amount`
+- `timestamp`, `latitude`, `longitude`, `is_fraud`, `fraud_probability`
+- `fraud_reasons`, `status`, `balance_before`, `balance_after`
+
+**Fraud Accounts Table:**
+- `upi_id`, `account_name`, `suspicious`, `fraud_stats`, `created_at`
+
+## 🚀 Quick Start (From GitHub)
+
+### Prerequisites
+- Node.js 18+ and npm
+- Python 3.9+ (for ML model - optional)
+- Git
+
+### 1. Clone & Install
+
 ```bash
+# Clone the repository
 git clone https://github.com/Srichandana-99/UPI-Guard.git
 cd UPI-Guard
+
+# Install all dependencies (root, backend, frontend)
+npm run install:all
 ```
 
-### 2. Configure Environment Variables
+### 2. Environment Setup
 
-**Backend (`backend/.env`):**
-```env
-DATABASE_URL=postgresql://postgres:[PASSWORD]@[YOUR-SUPABASE-DB-URI]:5432/postgres
-SUPABASE_URL=https://[YOUR-PROJECT].supabase.co
-SUPABASE_KEY=[YOUR-ANON-PUBLIC-KEY]
-CORS_ORIGINS=http://localhost:5173
-ADMIN_EMAILS=your_email@gmail.com
-SENDER_EMAIL=your_email@gmail.com
-SENDER_PASSWORD=your_app_password
-```
-
-**Frontend (`frontend/.env`):**
-```env
-VITE_API_URL=http://localhost:8000/api/v1
-VITE_VAPID_PUBLIC_KEY=your_vapid_public_key
-```
-
-### 3. Install Dependencies
-
-**Backend:**
 ```bash
+# Backend environment
 cd backend
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
+cp .env.example .env
+# Edit .env - set JWT_SECRET and other configs
+cd ..
 
-**Frontend:**
-```bash
+# Frontend environment  
 cd frontend
-npm install
+cp .env.example .env
+# Edit .env - set VITE_API_URL=http://localhost:5001
+cd ..
 ```
 
-### 4. Run the Application
+### 3. Start the Application
 
-**Terminal 1 - Backend:**
 ```bash
+# Start both backend and frontend with one command
+npm start
+```
+
+Or start separately:
+```bash
+# Terminal 1 - Backend
 cd backend
-source venv/bin/activate
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+npm start
 
-**Terminal 2 - Frontend:**
-```bash
+# Terminal 2 - Frontend  
 cd frontend
 npm run dev
 ```
 
-The app will be available at:
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:8000`
-- API Docs: `http://localhost:8000/docs`
+### 4. Access the App
 
----
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:5001
 
-## 📱 PWA Installation
-
-### On Android
-1. Open the app in Chrome
-2. Tap menu (⋮) → "Install app"
-3. App appears on home screen
-
-### On iOS
-1. Open the app in Safari
-2. Tap Share → "Add to Home Screen"
-3. App appears on home screen
-
-### On Desktop
-1. Open the app in Chrome/Edge
-2. Click install icon in address bar
-3. App opens in standalone window
-
-See [PWA_SETUP.md](./PWA_SETUP.md) for detailed PWA configuration.
-
----
-
-## 🌐 Deployment
-
-### Frontend (Vercel)
-```bash
-cd frontend
-npm run build
-# Push to GitHub, Vercel auto-deploys
-```
-
-### Backend (Render)
-1. Set environment variables in Render dashboard
-2. Connect GitHub repository
-3. Deploy with start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-
----
-
-## 📚 Project Structure
+## � Project Structure
 
 ```
 UPI-Guard/
-├── frontend/                 # React PWA application
+├── backend/                 # Express.js API server
+│   ├── config/             # Database config
+│   ├── controllers/        # Auth, transaction, user controllers
+│   ├── middleware/         # JWT auth, error handling
+│   ├── routes/             # API route definitions
+│   ├── utils/              # Fraud engine, QR codes, location
+│   ├── scripts/            # DB initialization scripts
+│   ├── server.js           # Express server entry
+│   └── package.json
+│
+├── frontend/               # React + Vite frontend
 │   ├── src/
-│   │   ├── pages/           # Page components
-│   │   ├── components/      # Reusable components
-│   │   ├── context/         # Auth context with offline support
-│   │   ├── lib/             # Utilities (offline storage, etc)
-│   │   └── main.jsx         # Entry point
-│   ├── public/
-│   │   ├── manifest.json    # PWA manifest
-│   │   ├── service-worker.js # Service worker
-│   │   └── offline.html     # Offline fallback
-│   └── vite.config.js       # Vite + PWA config
+│   │   ├── components/     # Reusable UI components
+│   │   ├── context/        # AuthContext
+│   │   ├── lib/            # API clients
+│   │   ├── pages/          # Dashboard, SendMoney, History, etc.
+│   │   └── App.jsx         # Main app component
+│   ├── index.html
+│   └── package.json
 │
-├── backend/                  # FastAPI backend
-│   ├── app/
-│   │   ├── api/routes/      # API endpoints
-│   │   ├── db/              # Database models & CRUD
-│   │   ├── services/        # Business logic (fraud detection)
-│   │   ├── core/            # Config & security
-│   │   └── main.py          # FastAPI app
-│   ├── requirements.txt      # Python dependencies
-│   └── .env                 # Environment variables
+├── model/                  # Python ML fraud detection model
+│   ├── app.py              # Flask API for predictions
+│   ├── train_model.py      # Model training script
+│   └── fraud_detection_model.pkl
 │
-├── PWA_SETUP.md             # PWA configuration guide
-├── BUG_FIXES_SUMMARY.md     # Bug fixes documentation
-└── README.md                # This file
+├── functions/              # Firebase Cloud Functions (optional)
+│   ├── index.js            # Firebase handlers
+│   └── utils/              # Shared utilities
+│
+├── package.json            # Root package with start scripts
+└── README.md               # This file
 ```
 
----
+## � API Endpoints
 
-## 🔐 Security Features
+### Authentication
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/register` | Register new user |
+| POST | `/api/auth/login` | Login user |
+| GET | `/api/auth/me` | Get current user |
+| POST | `/api/auth/reset-password` | Reset password |
 
-- ✅ Email OTP authentication (no passwords)
-- ✅ Admin role-based access control
-- ✅ Transaction validation and fraud detection
-- ✅ Location tracking for anomaly detection
-- ✅ Secure CORS configuration
-- ✅ Input validation and sanitization
-- ✅ Offline data encryption support
+### Transactions
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/transactions/initiate` | Send money with fraud check |
+| GET | `/api/transactions/history` | Get transaction history |
+| GET | `/api/transactions/:id` | Get single transaction |
 
----
+### User
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/user/profile` | Get profile & stats |
+| PUT | `/api/user/profile` | Update profile |
+| POST | `/api/user/regenerate-qr` | Regenerate QR code |
+| POST | `/api/user/location` | Log location |
 
-## 🐛 Bug Fixes
+## 🛡️ Fraud Detection Engine
 
-All critical bugs have been identified and fixed. See [BUG_FIXES_SUMMARY.md](./BUG_FIXES_SUMMARY.md) for details on:
-- Security vulnerabilities
-- Race conditions
-- Input validation
-- Error handling
-- And more...
+The 5-layer detection system analyzes each transaction:
 
----
+1. **Amount Anomaly** - Z-score > 3 flags unusual amounts
+2. **Time Anomaly** - Transactions 11 PM - 6 AM flagged
+3. **Location Anomaly** - Distance > 100 km from usual location
+4. **Velocity Check** - Speed > 800 km/h (impossible travel)
+5. **High Amount** - Transactions > ₹50,000 flagged
 
-## 📖 API Documentation
-
-Once the backend is running, visit:
-- **Swagger UI:** `http://localhost:8000/docs`
-- **ReDoc:** `http://localhost:8000/redoc`
-
-### Key Endpoints
-
-**Authentication:**
-- `POST /api/v1/auth/register` - Register new user
-- `POST /api/v1/auth/login` - Request OTP
-- `POST /api/v1/auth/verify-otp` - Verify OTP and login
-
-**Transactions:**
-- `POST /api/v1/transaction/transfer` - Send money
-- `GET /api/v1/transaction/history/{email}` - Get transaction history
-- `POST /api/v1/transaction/validate-upi` - Validate UPI ID
-
-**Admin:**
-- `GET /api/v1/admin/users` - Get all users
-- `GET /api/v1/admin/transactions` - Get all transactions
-- `GET /api/v1/admin/fraud-alerts` - Get fraud alerts
-- `GET /api/v1/admin/analytics` - Get system analytics
-
----
+**ML Integration:** Optional Python Flask API for advanced fraud scoring using XGBoost.
 
 ## 🧪 Testing
 
-### Backend Tests
+### Manual Testing
+1. Register a new user at `/register`
+2. Login with credentials
+3. View auto-generated UPI ID and ₹70,000-150,000 balance
+4. Send money to another UPI ID
+5. Check transaction history for fraud status
+
+### Fraud Detection Tests
 ```bash
-cd backend
-pytest
+Test Case 1: Send ₹60,000+ (High amount flag)
+Test Case 2: Send money at 2 AM (Time anomaly)
+Test Case 3: Use VPN to change location (Location anomaly)
+Test Case 4: Multiple rapid transactions (Velocity check)
 ```
 
-### Frontend Tests
+## � Development Commands
+
 ```bash
-cd frontend
-npm run test
+# Root directory commands
+npm start              # Start backend + frontend
+npm run dev            # Same as npm start
+npm run install:all    # Install all dependencies
+
+# Backend commands (cd backend)
+npm start              # Start server on port 5001
+npm run dev            # Start with nodemon
+npm run init-db        # Initialize database
+
+# Frontend commands (cd frontend)  
+npm run dev            # Start dev server on port 5173
+npm run build          # Build for production
+npm run preview        # Preview production build
 ```
 
----
+## 📝 Environment Variables
+
+### Backend (.env)
+```env
+JWT_SECRET=your_jwt_secret_key_here
+PORT=5001
+NODE_ENV=development
+```
+
+### Frontend (.env)
+```env
+VITE_API_URL=http://localhost:5001
+```
+
+## 🔐 Security Features
+
+- Passwords hashed with bcrypt (10 rounds)
+- JWT tokens with 7-day expiration
+- SQL injection protection (parameterized queries)
+- CORS enabled for frontend origin only
+- Input validation on all endpoints
 
 ## 🤝 Contributing
 
@@ -232,55 +251,19 @@ npm run test
 4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
----
+## 📧 Support
 
-## 📝 License
+For issues or questions:
+- Open an issue on GitHub: https://github.com/Srichandana-99/UPI-Guard/issues
+- Check backend logs in console
+- Check browser console for frontend errors
 
-This project is licensed under the ISC License - see the [LICENSE](./LICENSE) file for details.
+## 📄 License
 
----
-
-## 🆘 Support
-
-For issues, questions, or suggestions:
-1. Check existing issues on GitHub
-2. Create a new issue with detailed description
-3. Include steps to reproduce
-4. Attach relevant logs or screenshots
+MIT License
 
 ---
 
-## 🎯 Roadmap
+Built with ❤️ for secure UPI transactions
 
-- [ ] Biometric authentication (fingerprint, face)
-- [ ] QR code scanning improvements
-- [ ] Advanced fraud detection with ML
-- [ ] Multi-language support
-- [ ] Dark/Light theme toggle
-- [ ] Transaction scheduling
-- [ ] Bill payment integration
-- [ ] Cryptocurrency support
-
----
-
-## 📊 Performance
-
-- **Lighthouse Score:** 95+
-- **Bundle Size:** ~150KB (gzipped)
-- **First Contentful Paint:** <1s
-- **Time to Interactive:** <2s
-- **Offline Support:** Full functionality
-
----
-
-## 🔗 Resources
-
-- [Supabase Documentation](https://supabase.com/docs)
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [React Documentation](https://react.dev)
-- [PWA Documentation](https://web.dev/progressive-web-apps/)
-- [Vite Documentation](https://vitejs.dev/)
-
----
-
-**Made with ❤️ for secure UPI transactions**
+**GitHub**: https://github.com/Srichandana-99/UPI-Guard
